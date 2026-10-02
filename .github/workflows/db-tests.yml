@@ -1,0 +1,18 @@
+name: Database security tests
+
+on:
+  pull_request:
+  push:
+    branches: [master]
+    paths: ['supabase/**']
+
+jobs:
+  pgtap:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - run: supabase start -x studio,imgproxy,edge-runtime,logflare,vector,realtime,storage-api,mailpit
+      - run: supabase test db

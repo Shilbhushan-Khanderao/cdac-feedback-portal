@@ -1,0 +1,15 @@
+node_modules/
+dist/
+*.local
+*.tsbuildinfo
+*.log
+.env
+.env.*
+!.env.example
+.vscode/*
+.idea
+.DS_Store
+supabase/.branches/
+supabase/.temp/
+.claude/settings.local.json
+supabase/private/
