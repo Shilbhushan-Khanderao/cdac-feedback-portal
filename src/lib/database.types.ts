@@ -308,6 +308,9 @@ isOneToOne: false
 "my_email":
 { Args: Record<PropertyKey, never>; Returns: string
                            },
+"session_report":
+{ Args: { "p_session": string }; Returns: Json
+                           },
 "submit_feedback":
 { Args: { "p_answers": Json,"p_session": string }; Returns: undefined
                            },

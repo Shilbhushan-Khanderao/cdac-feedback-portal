@@ -22,7 +22,7 @@ export function SessionsPage() {
       must(
         supabase
           .from('feedback_sessions')
-          .select('id, batch_id, centre_id, course_id, opens_at, closes_at, modules(name), batches(label), centres(name), courses(code), submissions(count)')
+          .select('id, batch_id, centre_id, course_id, opens_at, closes_at, modules(name), batches(label), centres(name), courses(code), submissions(session_id)')
           .order('opens_at', { ascending: false }),
       ),
   });
@@ -66,7 +66,7 @@ export function SessionsPage() {
         {rows.map((s) => {
           const status = sessionStatus(s);
           const size = sizes.data?.get(cohortKey(s)) ?? 0;
-          const done = s.submissions[0]?.count ?? 0;
+          const done = s.submissions.length;
           const pct = size ? Math.round((100 * done) / size) : 0;
           return (
             <Link key={s.id} to={`/sessions/${s.id}`} className="card block hover:border-indigo-400">

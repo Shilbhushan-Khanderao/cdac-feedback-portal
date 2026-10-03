@@ -37,8 +37,9 @@ export default function SessionReport() {
           .maybeSingle(),
       );
       if (!session) return null;
-      const [responses, submissions, roster] = await Promise.all([
-        must(supabase.from('responses').select('answers').eq('session_id', id)),
+      const [result, submissions, roster] = await Promise.all([
+        // Answers come only from session_report(): after close, at least 3, in random order.
+        must(supabase.rpc('session_report', { p_session: id })),
         must(supabase.from('submissions').select('email').eq('session_id', id)),
         must(
           supabase
@@ -51,10 +52,13 @@ export default function SessionReport() {
         ),
       ]);
       const submitted = new Set(submissions.map((s) => s.email));
+      const answers = result as { status: 'open' | 'too_few' | 'ready'; answers: Answers[] };
       return {
         session,
         questions: session.questions as Question[],
-        answers: responses.map((r) => r.answers as Answers),
+        answers: answers.answers,
+        resultStatus: answers.status,
+        submittedCount: submitted.size,
         roster,
         pending: roster.filter((s) => !submitted.has(s.email)),
       };
@@ -106,8 +110,9 @@ export default function SessionReport() {
   if (error) return <p className="text-red-600">{error.message}</p>;
   if (!data || !report) return <p className="card">Session not found, or not in your centre.</p>;
 
-  const { session, roster, pending } = data;
+  const { session, roster, pending, resultStatus, submittedCount } = data;
   const status = sessionStatus(session);
+  const closed = status === 'closed';
   const moduleName = session.modules?.name ?? '';
   const courseCode = session.courses?.code ?? '';
   const centreName = session.centres?.name ?? '';
@@ -205,31 +210,45 @@ export default function SessionReport() {
           >
             Download CSV
           </button>
-          {report.total === 0 && (
+          {submittedCount === 0 && (
             <button className="btn btn-danger" onClick={() => confirm('Delete this session?') && remove.mutate()}>
               Delete
             </button>
           )}
         </div>
-        <form onSubmit={onReschedule} className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
-          <div>
-            <label className="label" htmlFor="opens">Opens</label>
-            <input id="opens" name="opens" type="datetime-local" className="input" required defaultValue={toLocalInput(session.opens_at)} />
-          </div>
-          <div>
-            <label className="label" htmlFor="closes">Closes</label>
-            <input id="closes" name="closes" type="datetime-local" className="input" required defaultValue={toLocalInput(session.closes_at)} />
-          </div>
-          <button className="btn" disabled={reschedule.isPending}>
-            Update schedule
-          </button>
-        </form>
+        {closed ? (
+          <p className="muted border-t border-slate-100 pt-3">
+            Ran {fmt(session.opens_at)} to {fmt(session.closes_at)}. The schedule is final after a session closes.
+          </p>
+        ) : (
+          <form onSubmit={onReschedule} className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
+            <div>
+              <label className="label" htmlFor="opens">Opens</label>
+              <input id="opens" name="opens" type="datetime-local" className="input" required defaultValue={toLocalInput(session.opens_at)} />
+            </div>
+            <div>
+              <label className="label" htmlFor="closes">Closes</label>
+              <input id="closes" name="closes" type="datetime-local" className="input" required defaultValue={toLocalInput(session.closes_at)} />
+            </div>
+            <button className="btn" disabled={reschedule.isPending}>
+              Update schedule
+            </button>
+            <span className="muted">Set Closes to now to end early. After closing, the schedule is final.</span>
+          </form>
+        )}
       </div>
 
       <div className="card">
         <p className="font-medium">
-          {report.total} of {roster.length} students submitted
+          {submittedCount} of {roster.length} students submitted
         </p>
+        {resultStatus !== 'ready' && (
+          <p className="muted mt-1">
+            {resultStatus === 'open'
+              ? `To keep answers anonymous, results appear after the session closes (${fmt(session.closes_at)}).`
+              : 'Results are hidden because fewer than 3 students responded. This keeps answers anonymous.'}
+          </p>
+        )}
         {pending.length > 0 && (
           <details className="mt-2">
             <summary className="cursor-pointer text-sm text-indigo-700">{pending.length} not submitted yet</summary>

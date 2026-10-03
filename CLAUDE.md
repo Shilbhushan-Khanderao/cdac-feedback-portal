@@ -16,7 +16,7 @@ TanStack Query, supabase-js. Reports: recharts, sentiment + compromise, @react-p
 
 ## Rules
 - Identity is the JWT email looked up in `staff_roster` (cc/admin) or `student_roster` (student). There is no profiles table.
-- **Anonymity:** `responses` must never get a student column or a timestamp. Only `submit_feedback()` writes `submissions` and `responses`.
+- **Anonymity:** `responses` must never get a student column or a timestamp. Only `submit_feedback()` writes `submissions` and `responses`. Nobody selects `responses` directly: staff read answers only through `session_report()` (after close, at least 3, random order). CCs see who submitted, not when. A closed session's schedule is final (`trg_lock_closed_schedule`).
 - A batch (e.g. Aug 2026) is global, shared by every centre and course. A cohort = batch + centre + course, stored as three columns on `student_roster` and `feedback_sessions`. Students see and submit only sessions of their own cohort (`in_my_cohort`).
 - Faculty rows belong to a centre (NULL = shared). CCs add their own centre's faculty inline (`FacultyPicker`).
 - RLS is the security boundary. Client-side filters (e.g. `useMyBatches`) only trim dropdowns.

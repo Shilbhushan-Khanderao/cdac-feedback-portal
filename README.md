@@ -52,7 +52,7 @@ npm test && npm run test:db
 2. Each CC uploads their students under **Students**: pick batch and course (centre is fixed to theirs). The CSV has columns `prn,name,email`, and each email must be the student's Google account.
 3. CC creates a session under **Sessions > New session**: batch, course, module, faculty, dates. If a faculty member is missing, type the name and click **Add faculty**. Admin can tick several centres to create one session per centre.
 4. CC uses **Copy student link** and shares the link on the batch group. Only students of that centre, course and batch can open and submit it.
-5. When the session closes, CC uses **Download PDF**.
+5. When the session closes, CC uses **Download PDF**. To keep answers anonymous, results appear only after the session closes and only when at least 3 students responded. A closed session's schedule is final.
 
 ## Capacity (free tier)
 
