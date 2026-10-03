@@ -41,9 +41,9 @@ export function CohortPicker({ value, onChange, multiCentre = false }: { value: 
       <div>
         <span className="label" id="cohort-centre-label">Centre</span>
         {me.role === 'cc' ? (
-          <p className="input bg-slate-50" aria-labelledby="cohort-centre-label">{centreName(me.centre_id!)}</p>
+          <p className="input bg-stone-50" aria-labelledby="cohort-centre-label">{centreName(me.centre_id!)}</p>
         ) : multiCentre ? (
-          <div className="space-y-1 rounded-lg border border-slate-300 p-2" role="group" aria-labelledby="cohort-centre-label">
+          <div className="space-y-1 rounded-lg border border-stone-300 p-2" role="group" aria-labelledby="cohort-centre-label">
             {centres.data?.map((c) => (
               <label key={c.id} className="flex items-center gap-2 text-sm">
                 <input
@@ -79,7 +79,7 @@ export function CohortPicker({ value, onChange, multiCentre = false }: { value: 
         <label className="label" htmlFor="cohort-course">Course</label>
         <select
           id="cohort-course"
-          className="input disabled:bg-slate-50"
+          className="input disabled:bg-stone-50"
           required
           disabled={!!me.course_id}
           value={value.course_id}

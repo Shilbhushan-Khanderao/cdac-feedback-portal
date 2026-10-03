@@ -101,7 +101,7 @@ export default function SessionReport() {
     onSuccess: () => {
       toast.success('Session deleted');
       void queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      navigate('/');
+      navigate('/sessions');
     },
     onError: (e) => toast.error(e.message),
   });
@@ -164,7 +164,7 @@ export default function SessionReport() {
 
   return (
     <div className="space-y-4">
-      <Link to="/" className="muted hover:underline">
+      <Link to="/sessions" className="muted hover:underline">
         ← Sessions
       </Link>
 
@@ -177,7 +177,7 @@ export default function SessionReport() {
           {courseCode} · {centreName} · {batchLabel}
         </p>
         {facultyDraft ? (
-          <div className="space-y-2 rounded-lg border border-slate-200 p-3">
+          <div className="space-y-2 rounded-lg border border-stone-200 p-3">
             <FacultyPicker centreId={session.centre_id} value={facultyDraft} onChange={setFacultyDraft} />
             <div className="flex gap-2">
               <button className="btn btn-primary" disabled={saveFaculty.isPending} onClick={() => saveFaculty.mutate(facultyDraft)}>
@@ -191,7 +191,7 @@ export default function SessionReport() {
         ) : (
           <p className="text-sm">
             Faculty: {session.faculty.length ? session.faculty.join(', ') : <span className="text-amber-700">not set</span>}{' '}
-            <button className="text-indigo-700 hover:underline" onClick={() => setFacultyDraft(session.faculty)}>
+            <button className="text-brand-700 hover:underline" onClick={() => setFacultyDraft(session.faculty)}>
               Edit
             </button>
           </p>
@@ -217,11 +217,11 @@ export default function SessionReport() {
           )}
         </div>
         {closed ? (
-          <p className="muted border-t border-slate-100 pt-3">
+          <p className="muted border-t border-stone-100 pt-3">
             Ran {fmt(session.opens_at)} to {fmt(session.closes_at)}. The schedule is final after a session closes.
           </p>
         ) : (
-          <form onSubmit={onReschedule} className="flex flex-wrap items-end gap-2 border-t border-slate-100 pt-3">
+          <form onSubmit={onReschedule} className="flex flex-wrap items-end gap-2 border-t border-stone-100 pt-3">
             <div>
               <label className="label" htmlFor="opens">Opens</label>
               <input id="opens" name="opens" type="datetime-local" className="input" required defaultValue={toLocalInput(session.opens_at)} />
@@ -251,7 +251,7 @@ export default function SessionReport() {
         )}
         {pending.length > 0 && (
           <details className="mt-2">
-            <summary className="cursor-pointer text-sm text-indigo-700">{pending.length} not submitted yet</summary>
+            <summary className="cursor-pointer text-sm text-brand-700">{pending.length} not submitted yet</summary>
             <ul className="mt-2 columns-1 text-sm sm:columns-2">
               {pending.map((s) => (
                 <li key={s.email}>

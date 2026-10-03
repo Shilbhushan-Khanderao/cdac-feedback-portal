@@ -73,9 +73,9 @@ export function TableEditor({ table, columns, pk = 'id', order, filters }: Props
 
   const blank: Row = { ...filters };
   return (
-    <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
+    <div className="overflow-x-auto rounded-xl border border-stone-200 bg-white">
       <table className="w-full text-sm">
-        <thead className="bg-slate-50 text-left text-slate-600">
+        <thead className="bg-stone-50 text-left text-stone-600">
           <tr>
             {columns.map((c) => (
               <th key={c.key} className="px-3 py-2 font-medium">
@@ -123,7 +123,7 @@ function EditRow({ columns, row, onSave, onDelete }: { columns: Col[]; row: Row;
   };
 
   return (
-    <tr className={`border-t border-slate-100 ${isNew ? 'bg-slate-50/50' : ''}`}>
+    <tr className={`border-t border-stone-100 ${isNew ? 'bg-stone-50/50' : ''}`}>
       {columns.map((c) => (
         <td key={c.key} className="px-2 py-1.5">
           {c.type === 'bool' ? (

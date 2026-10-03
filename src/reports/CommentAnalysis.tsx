@@ -5,7 +5,7 @@ import nlp from 'compromise';
 
 // Ported from v1 CommentAnalysis.jsx (AFINN sentiment + compromise phrases). Screen only, not in the PDF.
 const analyser = new Sentiment();
-const toneColor = (score: number) => (score >= 3 ? '#43a047' : score <= -2 ? '#e53935' : '#ffb300');
+const toneColor = (score: number) => (score >= 3 ? '#1b7a4a' : score <= -2 ? '#b83b2e' : '#a8a29e');
 
 function top(freq: Record<string, number>, n: number) {
   return Object.entries(freq)
@@ -32,9 +32,9 @@ function analyze(comments: string[]) {
   return {
     avgScore: Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10,
     tone: [
-      { label: 'Positive', count: positive, color: '#43a047' },
-      { label: 'Neutral', count: comments.length - positive - negative, color: '#ffb300' },
-      { label: 'Negative', count: negative, color: '#e53935' },
+      { label: 'Positive', count: positive, color: '#1b7a4a' },
+      { label: 'Neutral', count: comments.length - positive - negative, color: '#a8a29e' },
+      { label: 'Negative', count: negative, color: '#b83b2e' },
     ],
     phrases: top(phrases, 10),
     terms: top(terms, 12),
@@ -45,17 +45,17 @@ export function CommentAnalysis({ comments }: { comments: string[] }) {
   const a = useMemo(() => (comments.length ? analyze(comments) : null), [comments]);
   if (!a) return null;
   return (
-    <details className="mt-3 rounded-lg border border-sky-200 bg-sky-50/40">
+    <details className="mt-3 rounded-lg border border-brand-200 bg-brand-50/40">
       <summary className="cursor-pointer px-3 py-2 text-sm font-medium">Analysis</summary>
       <div className="space-y-4 bg-white p-3">
         <div className="grid grid-cols-3 gap-2 text-center">
           <Stat label="Comments" value={comments.length} />
-          <Stat label="Positive" value={a.tone[0].count} color="#43a047" />
+          <Stat label="Positive" value={a.tone[0].count} color="#1b7a4a" />
           <Stat label="Avg. score" value={(a.avgScore > 0 ? '+' : '') + a.avgScore} color={toneColor(a.avgScore)} />
         </div>
         <Bars title="Tone (AFINN)" data={a.tone.map((t) => ({ term: t.label, count: t.count, color: t.color }))} />
-        {a.phrases.length > 0 && <Bars title="Key phrases" data={a.phrases} color="#0088FE" />}
-        {a.terms.length > 0 && <Bars title="Descriptive words" data={a.terms} color="#00C49F" />}
+        {a.phrases.length > 0 && <Bars title="Key phrases" data={a.phrases} color="#1b8a4f" />}
+        {a.terms.length > 0 && <Bars title="Descriptive words" data={a.terms} color="#8e3b8a" />}
       </div>
     </details>
   );
@@ -63,7 +63,7 @@ export function CommentAnalysis({ comments }: { comments: string[] }) {
 
 function Stat({ label, value, color }: { label: string; value: string | number; color?: string }) {
   return (
-    <div className="rounded-lg bg-slate-50 p-2">
+    <div className="rounded-lg bg-stone-50 p-2">
       <div className="text-xl font-bold" style={{ color }}>
         {value}
       </div>

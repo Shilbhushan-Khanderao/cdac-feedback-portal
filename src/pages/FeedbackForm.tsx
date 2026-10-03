@@ -78,7 +78,7 @@ export function FeedbackForm() {
                     checked={answers[q.id] === o}
                     onChange={() => set(q.id, o)}
                   />
-                  <span className="block rounded-full border border-slate-300 px-4 py-2 text-sm peer-checked:border-indigo-600 peer-checked:bg-indigo-600 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-indigo-300">
+                  <span className="block rounded-full border border-stone-300 px-4 py-2 text-sm peer-checked:border-brand-600 peer-checked:bg-brand-600 peer-checked:text-white peer-focus-visible:ring-2 peer-focus-visible:ring-brand-300">
                     {o}
                   </span>
                 </label>

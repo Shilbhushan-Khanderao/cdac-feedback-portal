@@ -17,7 +17,7 @@ export function toLocalInput(iso: string | Date): string {
 export const STATUS_STYLE: Record<Status, string> = {
   upcoming: 'bg-amber-50 text-amber-700',
   open: 'bg-green-50 text-green-700',
-  closed: 'bg-slate-100 text-slate-600',
+  closed: 'bg-stone-100 text-stone-600',
 };
 
 /** Turn rate-limit / overload errors into advice a student can act on; pass others through. */

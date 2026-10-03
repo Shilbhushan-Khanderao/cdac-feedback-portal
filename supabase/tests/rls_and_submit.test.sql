@@ -1,7 +1,7 @@
 -- Security + anonymity checks. Relies on supabase/seed.sql (fresh: npm run test:db resets first).
 -- c1 = Mumbai/AC open, c2 = Mumbai/AC closed, c3 = Test ATC/AC open; all in shared batch b1.
 BEGIN;
-SELECT plan(43);
+SELECT plan(47);
 
 -- Valid answers for the default template.
 CREATE TEMP TABLE t_answers AS SELECT '{"explanation":"Good","pace":"Normal","interaction":"Excellent",
@@ -91,6 +91,16 @@ SET LOCAL ROLE authenticated;
 SELECT is(session_report('00000000-0000-0000-0000-0000000000c1') ->> 'status', 'ready', 'report ready after close with 3 responses');
 SELECT is(jsonb_array_length(session_report('00000000-0000-0000-0000-0000000000c1') -> 'answers'), 3,
   'report counts only Mumbai responses (ATC one excluded)');
+
+-- dashboard_data: aggregate counts follow the same privacy rule as the report.
+SELECT is((SELECT count(*) FROM jsonb_array_elements(dashboard_data()) e WHERE e ->> 'centre' <> 'C-DAC Mumbai'), 0::bigint,
+  'dashboard shows a CC only their own centre');
+SELECT isnt((SELECT e -> 'ratings' FROM jsonb_array_elements(dashboard_data()) e WHERE e ->> 'id' = '00000000-0000-0000-0000-0000000000c1'),
+  'null'::jsonb, 'dashboard has ratings for a closed session with 3+ responses');
+SELECT is((SELECT e -> 'ratings' FROM jsonb_array_elements(dashboard_data()) e WHERE e ->> 'id' = '00000000-0000-0000-0000-0000000000c2'),
+  'null'::jsonb, 'dashboard hides ratings of a closed session with no responses');
+SELECT is((SELECT (e ->> 'submitted')::int FROM jsonb_array_elements(dashboard_data()) e WHERE e ->> 'id' = '00000000-0000-0000-0000-0000000000c1'),
+  1, 'dashboard counts submitters');
 DELETE FROM feedback_sessions WHERE id = '00000000-0000-0000-0000-0000000000c1';
 SELECT is((SELECT count(*) FROM feedback_sessions WHERE id = '00000000-0000-0000-0000-0000000000c1'),
   1::bigint, 'session with submissions survives delete');

@@ -30,7 +30,7 @@ export function StudentHome() {
         <h1 className="text-lg font-semibold">Pending feedback</h1>
         {pending.length === 0 && <p className="card muted">Nothing pending. Thank you!</p>}
         {pending.map((s) => (
-          <Link key={s.id} to={`/feedback/${s.id}`} className="card block hover:border-indigo-400">
+          <Link key={s.id} to={`/feedback/${s.id}`} className="card block hover:border-brand-400">
             <div className="font-medium">{s.modules?.name}</div>
             {s.faculty.length > 0 && <div className="muted">{s.faculty.join(', ')}</div>}
             <div className="mt-2 flex items-center justify-between gap-2">
@@ -43,7 +43,7 @@ export function StudentHome() {
 
       {upcoming.length > 0 && (
         <section className="space-y-2">
-          <h2 className="font-semibold text-slate-600">Upcoming</h2>
+          <h2 className="font-semibold text-stone-600">Upcoming</h2>
           {upcoming.map((s) => (
             <div key={s.id} className="card muted">
               {s.modules?.name}: opens {fmt(s.opens_at)}
@@ -54,11 +54,11 @@ export function StudentHome() {
 
       {past.length > 0 && (
         <section className="space-y-2">
-          <h2 className="font-semibold text-slate-600">Past</h2>
+          <h2 className="font-semibold text-stone-600">Past</h2>
           {past.map((s) => (
             <div key={s.id} className="card flex justify-between text-sm">
               <span>{s.modules?.name}</span>
-              <span className={s.done ? 'text-green-700' : 'text-slate-400'}>{s.done ? 'Submitted' : 'Missed'}</span>
+              <span className={s.done ? 'text-green-700' : 'text-stone-400'}>{s.done ? 'Submitted' : 'Missed'}</span>
             </div>
           ))}
         </section>

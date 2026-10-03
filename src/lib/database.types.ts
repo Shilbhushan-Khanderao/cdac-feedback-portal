@@ -290,6 +290,9 @@ isOneToOne: false
             "can_manage":
 { Args: { "p_centre": string,"p_course": string }; Returns: boolean
                            },
+"dashboard_data":
+{ Args: Record<PropertyKey, never>; Returns: Json
+                           },
 "hook_restrict_signup_to_roster":
 { Args: { "event": Json }; Returns: Json
                            },

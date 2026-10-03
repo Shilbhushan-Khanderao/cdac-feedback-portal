@@ -46,7 +46,7 @@ export function FacultyPicker({ centreId, value, onChange }: { centreId: string;
       {names.length > 8 && (
         <input className="input" placeholder="Search faculty" aria-label="Search faculty" value={search} onChange={(e) => setSearch(e.target.value)} />
       )}
-      <div className="grid max-h-48 gap-1 overflow-y-auto rounded-lg border border-slate-200 p-2 sm:grid-cols-3">
+      <div className="grid max-h-48 gap-1 overflow-y-auto rounded-lg border border-stone-200 p-2 sm:grid-cols-3">
         {faculty.isLoading && <span className="muted">Loading…</span>}
         {shown.map((n) => (
           <label key={n} className="flex items-center gap-2 text-sm">

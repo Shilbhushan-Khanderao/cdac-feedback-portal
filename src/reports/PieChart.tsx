@@ -1,20 +1,17 @@
 import { Cell, Legend, Pie, PieChart as RePieChart, ResponsiveContainer, Tooltip, type PieLabelRenderProps } from 'recharts';
 import type { Slice } from './aggregate';
+import { CATEGORICAL, RATING_COLORS } from '../lib/palette';
 
-// Semantic colours from v1 reportConfig: each feedback label always gets the same colour.
+// One fixed colour per feedback word (rating words come from the shared palette; no blue).
 const COLORS: Record<string, string> = {
-  excellent: '#43a047',
-  'very good': '#00acc1',
-  good: '#ffb300',
-  average: '#ff7043',
-  poor: '#e53935',
-  normal: '#43a047',
-  fast: '#29b6f6',
-  'very fast': '#1565c0',
-  slow: '#ff9800',
-  'very slow': '#d32f2f',
+  ...Object.fromEntries(Object.entries(RATING_COLORS).map(([k, v]) => [k.toLowerCase(), v])),
+  normal: '#1b7a4a',
+  fast: '#e8864a',
+  'very fast': '#b83b2e',
+  slow: '#a67c00',
+  'very slow': '#8e3b8a',
 };
-const FALLBACK = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#D733FF'];
+const FALLBACK = [...CATEGORICAL];
 
 const RADIAN = Math.PI / 180;
 function percentLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: PieLabelRenderProps) {
@@ -22,7 +19,7 @@ function percentLabel({ cx, cy, midAngle, innerRadius, outerRadius, percent }: P
   const x = Number(cx) + radius * Math.cos(-Number(midAngle) * RADIAN);
   const y = Number(cy) + radius * Math.sin(-Number(midAngle) * RADIAN);
   return (
-    <text x={x} y={y} fill="black" textAnchor={x > Number(cx) ? 'start' : 'end'} dominantBaseline="central">
+    <text x={x} y={y} fill="#1c1917" textAnchor={x > Number(cx) ? 'start' : 'end'} dominantBaseline="central">
       {`${((percent ?? 0) * 100).toFixed(0)}%`}
     </text>
   );

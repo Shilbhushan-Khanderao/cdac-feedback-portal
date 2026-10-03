@@ -69,7 +69,7 @@ export function SessionsPage() {
           const done = s.submissions.length;
           const pct = size ? Math.round((100 * done) / size) : 0;
           return (
-            <Link key={s.id} to={`/sessions/${s.id}`} className="card block hover:border-indigo-400">
+            <Link key={s.id} to={`/sessions/${s.id}`} className="card block hover:border-brand-400">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{s.modules?.name}</span>
                 <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLE[status]}`}>{status}</span>
@@ -80,8 +80,8 @@ export function SessionsPage() {
               <div className="muted">
                 {s.centres?.name} · {s.courses?.code} · {s.batches?.label} · {fmt(s.opens_at)} – {fmt(s.closes_at)}
               </div>
-              <div className="mt-2 h-1.5 rounded bg-slate-100">
-                <div className="h-1.5 rounded bg-indigo-500" style={{ width: `${pct}%` }} />
+              <div className="mt-2 h-1.5 rounded bg-stone-100">
+                <div className="h-1.5 rounded bg-brand-500" style={{ width: `${pct}%` }} />
               </div>
             </Link>
           );

@@ -1,11 +1,45 @@
 @import "tailwindcss";
 
+/*
+ * Theme: deep green + warm stone, no blue anywhere.
+ * brand = primary actions, active nav, focus rings.
+ * Chart colours live in src/lib/palette.ts (validated for colour-blind safety).
+ */
+@theme {
+  --font-sans: "Fira Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-brand-50: #f0faf4;
+  --color-brand-100: #d8f1e2;
+  --color-brand-200: #b2e3c6;
+  --color-brand-300: #82cfa3;
+  --color-brand-400: #4fb67d;
+  --color-brand-500: #2a9d62;
+  --color-brand-600: #1b8a4f;
+  --color-brand-700: #166e40;
+  --color-brand-800: #115734;
+  --color-brand-900: #0c3f26;
+}
+
+@layer base {
+  html { color-scheme: light; }
+  body { background: var(--color-stone-50); color: var(--color-stone-900); font-family: var(--font-sans); }
+  :focus-visible { outline: 2px solid var(--color-brand-600); outline-offset: 2px; }
+  @media (prefers-reduced-motion: reduce) {
+    *, ::before, ::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+  }
+  button, [role="tab"], label[class~="btn"], select, summary { cursor: pointer; }
+  button:disabled { cursor: not-allowed; }
+}
+
 @layer components {
-  .card { @apply rounded-xl border border-slate-200 bg-white p-4 shadow-sm; }
-  .btn { @apply inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-50; }
-  .btn-primary { @apply border-indigo-600 bg-indigo-600 text-white hover:bg-indigo-700; }
+  .card { @apply rounded-xl border border-stone-200 bg-white p-4 shadow-sm; }
+  .btn { @apply inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border border-stone-300 bg-white px-4 py-2 text-sm font-medium text-stone-800 transition-colors duration-150 hover:bg-stone-100 disabled:cursor-not-allowed disabled:opacity-50; }
+  .btn-primary { @apply border-brand-700 bg-brand-700 text-white hover:bg-brand-800; }
   .btn-danger { @apply border-red-300 text-red-700 hover:bg-red-50; }
-  .input { @apply w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm focus:border-indigo-500 focus:outline-none focus:ring-2 focus:ring-indigo-200; }
-  .label { @apply mb-1 block text-sm font-medium text-slate-700; }
-  .muted { @apply text-sm text-slate-500; }
+  .input { @apply min-h-10 w-full rounded-lg border border-stone-300 bg-white px-3 py-2 text-sm transition-colors duration-150 focus:border-brand-600 focus:outline-none focus:ring-2 focus:ring-brand-200; }
+  .label { @apply mb-1 block text-sm font-medium text-stone-700; }
+  .muted { @apply text-sm text-stone-500; }
+  .page-title { @apply text-xl font-semibold tracking-tight text-stone-900; }
+  .section-title { @apply text-sm font-semibold uppercase tracking-wide text-stone-500; }
+  .num { font-variant-numeric: tabular-nums; }
 }
