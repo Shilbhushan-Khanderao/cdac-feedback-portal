@@ -25,28 +25,16 @@ export type Database = {
           Tables: {
             "batches": {
                   Row: {
-                    "active": boolean,"centre_id": string,"course_id": string,"id": string,"label": string
+                    "active": boolean,"id": string,"label": string
                   }
                   Insert: {
-                    "active"?: boolean,"centre_id": string,"course_id": string,"id"?: string,"label": string
+                    "active"?: boolean,"id"?: string,"label": string
                   }
                   Update: {
-                    "active"?: boolean,"centre_id"?: string,"course_id"?: string,"id"?: string,"label"?: string
+                    "active"?: boolean,"id"?: string,"label"?: string
                   }
                   Relationships: [
-                    {
-      foreignKeyName: "batches_centre_id_fkey"
-      columns: ["centre_id"]
-isOneToOne: false
-      referencedRelation: "centres"
-      referencedColumns: ["id"]
-    },{
-      foreignKeyName: "batches_course_id_fkey"
-      columns: ["course_id"]
-isOneToOne: false
-      referencedRelation: "courses"
-      referencedColumns: ["id"]
-    }
+                    
                   ]
                 },"centres": {
                   Row: {
@@ -82,26 +70,32 @@ isOneToOne: false
                   ]
                 },"faculty": {
                   Row: {
-                    "active": boolean,"id": string,"name": string
+                    "active": boolean,"centre_id": string | null,"id": string,"name": string
                   }
                   Insert: {
-                    "active"?: boolean,"id"?: string,"name": string
+                    "active"?: boolean,"centre_id"?: string | null,"id"?: string,"name": string
                   }
                   Update: {
-                    "active"?: boolean,"id"?: string,"name"?: string
+                    "active"?: boolean,"centre_id"?: string | null,"id"?: string,"name"?: string
                   }
                   Relationships: [
-                    
+                    {
+      foreignKeyName: "faculty_centre_id_fkey"
+      columns: ["centre_id"]
+isOneToOne: false
+      referencedRelation: "centres"
+      referencedColumns: ["id"]
+    }
                   ]
                 },"feedback_sessions": {
                   Row: {
-                    "batch_id": string,"closes_at": string,"created_at": string,"created_by": string | null,"faculty": (string)[],"id": string,"module_id": string,"opens_at": string,"questions": NonNullable<Json>
+                    "batch_id": string,"centre_id": string,"closes_at": string,"course_id": string,"created_at": string,"created_by": string | null,"faculty": (string)[],"id": string,"module_id": string,"opens_at": string,"questions": NonNullable<Json>
                   }
                   Insert: {
-                    "batch_id": string,"closes_at": string,"created_at"?: string,"created_by"?: string | null,"faculty"?: (string)[],"id"?: string,"module_id": string,"opens_at": string,"questions"?: NonNullable<Json>
+                    "batch_id": string,"centre_id": string,"closes_at": string,"course_id": string,"created_at"?: string,"created_by"?: string | null,"faculty"?: (string)[],"id"?: string,"module_id": string,"opens_at": string,"questions"?: NonNullable<Json>
                   }
                   Update: {
-                    "batch_id"?: string,"closes_at"?: string,"created_at"?: string,"created_by"?: string | null,"faculty"?: (string)[],"id"?: string,"module_id"?: string,"opens_at"?: string,"questions"?: NonNullable<Json>
+                    "batch_id"?: string,"centre_id"?: string,"closes_at"?: string,"course_id"?: string,"created_at"?: string,"created_by"?: string | null,"faculty"?: (string)[],"id"?: string,"module_id"?: string,"opens_at"?: string,"questions"?: NonNullable<Json>
                   }
                   Relationships: [
                     {
@@ -109,6 +103,18 @@ isOneToOne: false
       columns: ["batch_id"]
 isOneToOne: false
       referencedRelation: "batches"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "feedback_sessions_centre_id_fkey"
+      columns: ["centre_id"]
+isOneToOne: false
+      referencedRelation: "centres"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "feedback_sessions_course_id_fkey"
+      columns: ["course_id"]
+isOneToOne: false
+      referencedRelation: "courses"
       referencedColumns: ["id"]
     },{
       foreignKeyName: "feedback_sessions_module_id_fkey"
@@ -196,13 +202,13 @@ isOneToOne: false
                   ]
                 },"student_roster": {
                   Row: {
-                    "batch_id": string,"email": string,"full_name": string,"prn": string
+                    "batch_id": string,"centre_id": string,"course_id": string,"email": string,"full_name": string,"prn": string
                   }
                   Insert: {
-                    "batch_id": string,"email": string,"full_name": string,"prn": string
+                    "batch_id": string,"centre_id": string,"course_id": string,"email": string,"full_name": string,"prn": string
                   }
                   Update: {
-                    "batch_id"?: string,"email"?: string,"full_name"?: string,"prn"?: string
+                    "batch_id"?: string,"centre_id"?: string,"course_id"?: string,"email"?: string,"full_name"?: string,"prn"?: string
                   }
                   Relationships: [
                     {
@@ -210,6 +216,18 @@ isOneToOne: false
       columns: ["batch_id"]
 isOneToOne: false
       referencedRelation: "batches"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "student_roster_centre_id_fkey"
+      columns: ["centre_id"]
+isOneToOne: false
+      referencedRelation: "centres"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "student_roster_course_id_fkey"
+      columns: ["course_id"]
+isOneToOne: false
+      referencedRelation: "courses"
       referencedColumns: ["id"]
     }
                   ]
@@ -241,26 +259,51 @@ isOneToOne: false
                 }
           }
           Views: {
-            [_ in never]: never
+            "cohort_sizes": {
+                  Row: {
+                    "batch_id": string | null,"centre_id": string | null,"course_id": string | null,"students": number | null
+                  }
+                  Relationships: [
+                    {
+      foreignKeyName: "student_roster_batch_id_fkey"
+      columns: ["batch_id"]
+isOneToOne: false
+      referencedRelation: "batches"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "student_roster_centre_id_fkey"
+      columns: ["centre_id"]
+isOneToOne: false
+      referencedRelation: "centres"
+      referencedColumns: ["id"]
+    },{
+      foreignKeyName: "student_roster_course_id_fkey"
+      columns: ["course_id"]
+isOneToOne: false
+      referencedRelation: "courses"
+      referencedColumns: ["id"]
+    }
+                  ]
+                }
           }
           Functions: {
             "can_manage":
 { Args: { "p_centre": string,"p_course": string }; Returns: boolean
                            },
-"can_manage_batch":
-{ Args: { "p_batch": string }; Returns: boolean
-                           },
 "hook_restrict_signup_to_roster":
 { Args: { "event": Json }; Returns: Json
+                           },
+"in_my_cohort":
+{ Args: { "p_batch": string,"p_centre": string,"p_course": string }; Returns: boolean
                            },
 "is_admin":
 { Args: Record<PropertyKey, never>; Returns: boolean
                            },
+"is_my_centre":
+{ Args: { "p_centre": string }; Returns: boolean
+                           },
 "is_staff":
 { Args: Record<PropertyKey, never>; Returns: boolean
-                           },
-"my_batch":
-{ Args: Record<PropertyKey, never>; Returns: string
                            },
 "my_email":
 { Args: Record<PropertyKey, never>; Returns: string

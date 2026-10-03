@@ -113,7 +113,7 @@ function LoginPage() {
             Dev login (local Supabase)
           </label>
           <select id="dev-email" name="email" className="input">
-            {['student1', 'student2', 'student3', 'cc', 'cc.atc', 'admin'].map((u) => (
+            {['student1', 'student2', 'student3', 'student4', 'cc', 'cc.atc', 'admin'].map((u) => (
               <option key={u}>{u}@test.local</option>
             ))}
           </select>

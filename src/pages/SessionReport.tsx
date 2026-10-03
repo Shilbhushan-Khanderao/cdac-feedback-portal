@@ -8,6 +8,7 @@ import { fmt, sessionStatus, STATUS_STYLE, toLocalInput } from '../lib/format';
 import { aggregate, toCsv, type Answers, type Question } from '../reports/aggregate';
 import { PieChart } from '../reports/PieChart';
 import { CommentAnalysis } from '../reports/CommentAnalysis';
+import { FacultyPicker } from './FacultyPicker';
 
 function download(blob: Blob, name: string) {
   const a = document.createElement('a');
@@ -23,6 +24,7 @@ export default function SessionReport() {
   const queryClient = useQueryClient();
   const chartRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [facultyDraft, setFacultyDraft] = useState<string[] | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['report', id],
@@ -30,7 +32,7 @@ export default function SessionReport() {
       const session = await must(
         supabase
           .from('feedback_sessions')
-          .select('*, modules(name, short_name), batches(label, centres(name), courses(code))')
+          .select('*, modules(name, short_name), batches(label), centres(name), courses(code)')
           .eq('id', id)
           .maybeSingle(),
       );
@@ -38,7 +40,15 @@ export default function SessionReport() {
       const [responses, submissions, roster] = await Promise.all([
         must(supabase.from('responses').select('answers').eq('session_id', id)),
         must(supabase.from('submissions').select('email').eq('session_id', id)),
-        must(supabase.from('student_roster').select('email, prn, full_name').eq('batch_id', session.batch_id).order('prn')),
+        must(
+          supabase
+            .from('student_roster')
+            .select('email, prn, full_name')
+            .eq('batch_id', session.batch_id)
+            .eq('centre_id', session.centre_id)
+            .eq('course_id', session.course_id)
+            .order('prn'),
+        ),
       ]);
       const submitted = new Set(submissions.map((s) => s.email));
       return {
@@ -72,6 +82,16 @@ export default function SessionReport() {
     onError: (e) => toast.error(e.message),
   });
 
+  const saveFaculty = useMutation({
+    mutationFn: (faculty: string[]) => must(supabase.from('feedback_sessions').update({ faculty }).eq('id', id)),
+    onSuccess: () => {
+      toast.success('Faculty updated');
+      setFacultyDraft(null);
+      void queryClient.invalidateQueries({ queryKey: ['report', id] });
+    },
+    onError: (e) => toast.error(e.message),
+  });
+
   const remove = useMutation({
     mutationFn: () => must(supabase.from('feedback_sessions').delete().eq('id', id)),
     onSuccess: () => {
@@ -87,11 +107,12 @@ export default function SessionReport() {
   if (!data || !report) return <p className="card">Session not found, or not in your centre.</p>;
 
   const { session, roster, pending } = data;
-  const batch = session.batches;
   const status = sessionStatus(session);
   const moduleName = session.modules?.name ?? '';
-  const batchTitle = `${batch?.centres?.name} · ${batch?.label}`;
-  const fileBase = `feedback_${session.modules?.short_name || moduleName}_${batch?.label}`.replace(/[^\w-]+/g, '_');
+  const courseCode = session.courses?.code ?? '';
+  const centreName = session.centres?.name ?? '';
+  const batchLabel = session.batches?.label ?? '';
+  const fileBase = `feedback_${courseCode}_${session.modules?.short_name || moduleName}_${centreName}_${batchLabel}`.replace(/[^\w-]+/g, '_');
 
   const copyLink = async () => {
     await navigator.clipboard.writeText(`${location.origin}${location.pathname}#/feedback/${id}`);
@@ -110,10 +131,11 @@ export default function SessionReport() {
       for (const el of chartRefs.current) if (el) chartImages.push(await toPng(el, { pixelRatio: 2, backgroundColor: '#ffffff' }));
       const doc = (
         <ReportDocument
-          title={`${batch?.courses?.code} Module Feedback Report - ${moduleName}`}
+          title={`${courseCode} Module Feedback Report - ${moduleName}`}
           meta={[
             ['Module Name', moduleName],
-            ['Batch', batchTitle],
+            ['Centre', centreName],
+            ['Batch', batchLabel],
             ...(session.faculty.length ? [['Faculty Name', session.faculty.join(', ')] as [string, string]] : []),
             ['Feedback window', `${fmt(session.opens_at)} to ${fmt(session.closes_at)}`],
             ['Total Feedback Count', `${report.total} of ${roster.length}`],
@@ -147,9 +169,28 @@ export default function SessionReport() {
           <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLE[status]}`}>{status}</span>
         </div>
         <p className="muted">
-          {batch?.courses?.code} · {batchTitle}
-          {session.faculty.length > 0 && ` · ${session.faculty.join(', ')}`}
+          {courseCode} · {centreName} · {batchLabel}
         </p>
+        {facultyDraft ? (
+          <div className="space-y-2 rounded-lg border border-slate-200 p-3">
+            <FacultyPicker centreId={session.centre_id} value={facultyDraft} onChange={setFacultyDraft} />
+            <div className="flex gap-2">
+              <button className="btn btn-primary" disabled={saveFaculty.isPending} onClick={() => saveFaculty.mutate(facultyDraft)}>
+                Save faculty
+              </button>
+              <button className="btn" onClick={() => setFacultyDraft(null)}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        ) : (
+          <p className="text-sm">
+            Faculty: {session.faculty.length ? session.faculty.join(', ') : <span className="text-amber-700">not set</span>}{' '}
+            <button className="text-indigo-700 hover:underline" onClick={() => setFacultyDraft(session.faculty)}>
+              Edit
+            </button>
+          </p>
+        )}
         <div className="flex flex-wrap gap-2">
           <button className="btn btn-primary" onClick={copyLink}>
             Copy student link
@@ -160,7 +201,7 @@ export default function SessionReport() {
           <button
             className="btn"
             disabled={report.total === 0}
-            onClick={() => download(new Blob(['﻿' + toCsv(data.questions, data.answers)], { type: 'text/csv' }), `${fileBase}.csv`)}
+            onClick={() => download(new Blob([String.fromCharCode(0xfeff) + toCsv(data.questions, data.answers)], { type: 'text/csv' }), `${fileBase}.csv`)}
           >
             Download CSV
           </button>

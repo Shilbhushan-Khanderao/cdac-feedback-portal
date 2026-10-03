@@ -17,6 +17,8 @@ TanStack Query, supabase-js. Reports: recharts, sentiment + compromise, @react-p
 ## Rules
 - Identity is the JWT email looked up in `staff_roster` (cc/admin) or `student_roster` (student). There is no profiles table.
 - **Anonymity:** `responses` must never get a student column or a timestamp. Only `submit_feedback()` writes `submissions` and `responses`.
+- A batch (e.g. Aug 2026) is global, shared by every centre and course. A cohort = batch + centre + course, stored as three columns on `student_roster` and `feedback_sessions`. Students see and submit only sessions of their own cohort (`in_my_cohort`).
+- Faculty rows belong to a centre (NULL = shared). CCs add their own centre's faculty inline (`FacultyPicker`).
 - RLS is the security boundary. Client-side filters (e.g. `useMyBatches`) only trim dropdowns.
 - Never delete data that holds feedback: sessions with submissions can't be deleted; courses, modules and batches in use are protected by FK. Deactivate instead.
 - Schema changes go in a new file under `supabase/migrations/`, plus a pgTAP test for any new policy. Apply to prod with `npx supabase db push`, never through the MCP (it is read-only).

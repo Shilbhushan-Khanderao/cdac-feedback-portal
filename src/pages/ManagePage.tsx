@@ -1,14 +1,13 @@
 import { useState } from 'react';
-import { useQuery } from '@tanstack/react-query';
 import { useMe } from '../auth';
-import { must, supabase } from '../lib/supabase';
+import { useCentres, useCourses } from '../lib/reference';
 import { TableEditor, type Col } from './TableEditor';
 
 type Tab = { id: string; label: string; adminOnly?: boolean; note?: string };
 const TABS: Tab[] = [
-  { id: 'batches', label: 'Batches' },
+  { id: 'faculty', label: 'Faculty', note: 'Leave Centre empty to share a faculty member across all centres. CCs see their centre’s faculty plus shared ones.' },
   { id: 'modules', label: 'Modules' },
-  { id: 'faculty', label: 'Faculty' },
+  { id: 'batches', label: 'Batches', adminOnly: true, note: 'One batch (e.g. Aug 2026) is shared by every centre and course. Create it once.' },
   { id: 'courses', label: 'Courses', adminOnly: true, note: 'Rename freely. Courses in use cannot be deleted: untick Active instead.' },
   { id: 'centres', label: 'Centres', adminOnly: true, note: 'ATCs need a parent C-DAC centre.' },
   { id: 'staff_roster', label: 'Staff', adminOnly: true, note: 'CCs see only their centre. Leave Course empty for all courses at that centre. Admins see everything.' },
@@ -21,15 +20,13 @@ export function ManagePage() {
   const [tab, setTab] = useState(tabs[0].id);
   const [courseId, setCourseId] = useState('');
 
-  const centres = useQuery({ queryKey: ['centres'], queryFn: () => must(supabase.from('centres').select('*').order('name')) });
-  const courses = useQuery({ queryKey: ['courses'], queryFn: () => must(supabase.from('courses').select('*').order('code')) });
+  const centres = useCentres();
+  const courses = useCourses();
   const centreOpts = centres.data?.map((c) => ({ value: c.id, label: c.name })) ?? [];
   const courseOpts = courses.data?.map((c) => ({ value: c.id, label: c.code })) ?? [];
 
   const columns: Record<string, Col[]> = {
     batches: [
-      { key: 'centre_id', label: 'Centre', type: 'select', options: centreOpts, required: true },
-      { key: 'course_id', label: 'Course', type: 'select', options: courseOpts, required: true },
       { key: 'label', label: 'Batch (e.g. Aug 2026)', required: true },
       { key: 'active', label: 'Active', type: 'bool' },
     ],
@@ -41,6 +38,7 @@ export function ManagePage() {
     ],
     faculty: [
       { key: 'name', label: 'Name', required: true },
+      { key: 'centre_id', label: 'Centre (empty = shared)', type: 'select', options: centreOpts },
       { key: 'active', label: 'Active', type: 'bool' },
     ],
     courses: [
@@ -100,7 +98,7 @@ export function ManagePage() {
             ))}
           </select>
           {courseId && (
-            <TableEditor key={courseId} table="modules" columns={columns.modules} order="sort_order" filter={{ column: 'course_id', value: courseId }} />
+            <TableEditor key={courseId} table="modules" columns={columns.modules} order="sort_order" filters={{ course_id: courseId }} />
           )}
         </>
       ) : (

@@ -17,27 +17,30 @@ type Props = {
   columns: Col[];
   pk?: string;
   order: string;
-  filter?: { column: string; value: string };
+  /** Rows shown are limited to these column values, and new rows get them. */
+  filters?: Record<string, string>;
 };
 
 // Generic over table names, so it uses the untyped client. RLS still decides what saves.
 const db = supabase as unknown as SupabaseClient;
 
 const friendly = (message: string) =>
-  message.includes('foreign key')
+  message.includes('duplicate key')
+    ? 'This already exists.'
+    : message.includes('foreign key')
     ? 'This row is in use elsewhere. Mark it inactive instead of deleting.'
     : message.includes('row-level security')
       ? 'You are not allowed to change this row.'
       : message;
 
 /** Inline add/edit/delete table for small reference lists. */
-export function TableEditor({ table, columns, pk = 'id', order, filter }: Props) {
+export function TableEditor({ table, columns, pk = 'id', order, filters }: Props) {
   const queryClient = useQueryClient();
   const rows = useQuery({
-    queryKey: [table, 'editor', filter?.value],
+    queryKey: [table, 'editor', filters],
     queryFn: () => {
       let q = db.from(table).select('*').order(order);
-      if (filter) q = q.eq(filter.column, filter.value);
+      for (const [column, value] of Object.entries(filters ?? {})) q = q.eq(column, value);
       return must(q) as Promise<Row[]>;
     },
   });
@@ -49,7 +52,6 @@ export function TableEditor({ table, columns, pk = 'id', order, filter }: Props)
       toast.success('Saved');
       // Prefix match also refreshes dropdowns that read this table elsewhere.
       void queryClient.invalidateQueries({ queryKey: [table] });
-      if (table === 'student_roster') void queryClient.invalidateQueries({ queryKey: ['batches'] });
     },
     onError: (e) => toast.error(friendly(e.message)),
   });
@@ -62,7 +64,6 @@ export function TableEditor({ table, columns, pk = 'id', order, filter }: Props)
     onSuccess: () => {
       toast.success('Deleted');
       void queryClient.invalidateQueries({ queryKey: [table] });
-      if (table === 'student_roster') void queryClient.invalidateQueries({ queryKey: ['batches'] });
     },
     onError: (e) => toast.error(friendly(e.message)),
   });
@@ -70,7 +71,7 @@ export function TableEditor({ table, columns, pk = 'id', order, filter }: Props)
   if (rows.isLoading) return <p className="muted">Loading…</p>;
   if (rows.error) return <p className="text-red-600">{rows.error.message}</p>;
 
-  const blank: Row = filter ? { [filter.column]: filter.value } : {};
+  const blank: Row = { ...filters };
   return (
     <div className="overflow-x-auto rounded-xl border border-slate-200 bg-white">
       <table className="w-full text-sm">
