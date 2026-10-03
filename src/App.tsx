@@ -68,7 +68,7 @@ const router = createHashRouter([
   },
 ]);
 
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: false, refetchOnWindowFocus: false } } });
+const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 2, refetchOnWindowFocus: false } } });
 
 export default function App() {
   return (

@@ -53,3 +53,17 @@ npm test && npm run test:db
 3. CC creates a session under **Sessions > New session**: batch, course, module, faculty, dates. If a faculty member is missing, type the name and click **Add faculty**. Admin can tick several centres to create one session per centre.
 4. CC uses **Copy student link** and shares the link on the batch group. Only students of that centre, course and batch can open and submit it.
 5. When the session closes, CC uses **Download PDF**.
+
+## Capacity (free tier)
+
+Load test on a local stack capped at the free plan's size (1 CPU, 512 MB). Each virtual student ran the real sequence: who-am-I, home, form, submit.
+
+| Students arriving | Errors | Time per student (p50 / p95) |
+|---|---|---|
+| 700 over 60 s | 0 | 16 ms / 27 ms |
+| 700 within 10 s | 0 | 19 ms / 4.9 s (queued, all saved) |
+| 1,400 within 10 s | 8% got "server busy" (retried automatically on screens; Submit pressed again) | 37 s / 43 s |
+
+- **Sign-in is the real limit.** Supabase Auth allows 30 sign-ins and 150 token refreshes per 5 minutes **per IP address**. A centre's lab usually shares one public IP. In the dashboard, go to **Authentication > Rate Limits** and raise *sign-ups and sign-ins* (e.g. 1500) and *token refreshes* (e.g. 3000).
+- Students sign in once, any time before the session. They stay signed in, so a session only needs data requests.
+- Keep feedback windows open for a day or more. If a whole centre must submit in one lab period, have students sign in a few minutes earlier, in two groups.

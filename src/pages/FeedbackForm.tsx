@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
 import { must, supabase } from '../lib/supabase';
-import { fmt, sessionStatus } from '../lib/format';
+import { fmt, friendlyError, sessionStatus } from '../lib/format';
 import type { Question } from '../reports/aggregate';
 
 export function FeedbackForm() {
@@ -35,7 +35,7 @@ export function FeedbackForm() {
       void queryClient.invalidateQueries({ queryKey: ['feedback', id] });
       navigate('/');
     },
-    onError: (e) => toast.error(e.message),
+    onError: (e) => toast.error(friendlyError(e.message)),
   });
 
   if (isLoading) return <p className="muted">Loading…</p>;

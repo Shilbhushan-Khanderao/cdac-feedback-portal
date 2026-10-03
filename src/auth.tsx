@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type FormEvent, type Re
 import type { Session } from '@supabase/supabase-js';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from './lib/supabase';
+import { friendlyError } from './lib/format';
 
 export type Me = {
   email: string;
@@ -78,17 +79,18 @@ function Centered({ children }: { children: ReactNode }) {
 }
 
 function LoginPage() {
-  const [error, setError] = useState<string | null>(
-    // Supabase puts OAuth / signup-hook errors in the redirect URL.
-    new URLSearchParams(location.search).get('error_description'),
-  );
+  const [error, setError] = useState<string | null>(() => {
+    // Supabase puts OAuth / signup-hook / rate-limit errors in the redirect URL.
+    const fromUrl = new URLSearchParams(location.search).get('error_description');
+    return fromUrl && friendlyError(fromUrl);
+  });
 
   const google = async () => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: { redirectTo: location.origin + location.pathname },
     });
-    if (error) setError(error.message);
+    if (error) setError(friendlyError(error.message));
   };
 
   // Local development only: seeded test users (see supabase/seed.sql). Stripped from production builds.
