@@ -3,9 +3,11 @@ import { useQueryClient } from '@tanstack/react-query';
 import Papa from 'papaparse';
 import { toast } from 'sonner';
 import { useMe } from '../auth';
-import { must, supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import { CohortPicker, cohortReady, emptyCohort, type Cohort } from './CohortPicker';
 import { TableEditor } from './TableEditor';
+
+const sanitize = (str: string) => str.trim().replace(/^[=+\-@\t\r]+/, '');
 
 export function RosterPage() {
   const me = useMe();
@@ -26,8 +28,8 @@ export function RosterPage() {
       transformHeader: (h) => h.trim().toLowerCase().replace(/\s+/g, '_'),
       complete: async ({ data }) => {
         const rows = data.map((r) => ({
-          prn: (r.prn ?? '').trim(),
-          full_name: (r.full_name ?? r.name ?? '').trim(),
+          prn: sanitize(r.prn ?? ''),
+          full_name: sanitize(r.full_name ?? r.name ?? ''),
           email: (r.email ?? r.gmail ?? '').trim().toLowerCase(),
           ...filters,
         }));
@@ -35,7 +37,7 @@ export function RosterPage() {
         if (bad >= 0) return toast.error(`Row ${bad + 2}: prn, name and email are all required`);
         setBusy(true);
         try {
-          await must(supabase.from('student_roster').upsert(rows, { onConflict: 'email' }));
+          await api.roster.upsert(rows);
           toast.success(`${rows.length} students saved`);
           void queryClient.invalidateQueries({ queryKey: ['student_roster'] });
         } catch (err) {

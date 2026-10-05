@@ -5,7 +5,7 @@ import { Bar, BarChart, CartesianGrid, LabelList, Line, LineChart, ResponsiveCon
 import { useMe } from '../auth';
 import { fmt, sessionStatus } from '../lib/format';
 import { CATEGORICAL, INK, RATING_COLORS, RATING_ORDER, RATING_SCORE } from '../lib/palette';
-import { must, supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 
 type Row = {
   id: string;
@@ -44,7 +44,7 @@ export function DashboardPage() {
   const [centre, setCentre] = useState('');
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard'],
-    queryFn: async () => (await must(supabase.rpc('dashboard_data'))) as unknown as Row[],
+    queryFn: () => api.reports.dashboard() as Promise<Row[]>,
   });
 
   const distinct = (key: 'batch' | 'course' | 'centre') =>

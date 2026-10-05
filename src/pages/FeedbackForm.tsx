@@ -2,9 +2,19 @@ import { useState, type FormEvent } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toast } from 'sonner';
-import { must, supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import { fmt, friendlyError, sessionStatus } from '../lib/format';
 import type { Question } from '../reports/aggregate';
+
+type FeedbackSession = {
+  id: string;
+  modules?: { name: string };
+  faculty: string[];
+  questions: Question[];
+  opens_at: string;
+  closes_at: string;
+  done: boolean;
+};
 
 export function FeedbackForm() {
   const { id = '' } = useParams();
@@ -13,21 +23,22 @@ export function FeedbackForm() {
   const [answers, setAnswers] = useState<Record<string, string>>({});
   const set = (q: string, v: string) => setAnswers((a) => ({ ...a, [q]: v }));
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error } = useQuery<FeedbackSession | null>({
     queryKey: ['feedback', id],
     queryFn: async () => {
       const [session, subs] = await Promise.all([
-        must(supabase.from('feedback_sessions').select('*, modules(name)').eq('id', id).maybeSingle()),
-        must(supabase.from('submissions').select('session_id').eq('session_id', id)),
+        api.sessions.get(id).catch(() => null),
+        api.feedback.mySubmissions(),
       ]);
-      return session && { ...session, questions: session.questions as Question[], done: subs.length > 0 };
+      if (!session) return null;
+      const done = subs.some((s) => s.session_id === id);
+      return { ...session, questions: session.questions as Question[], done };
     },
   });
 
   const submit = useMutation({
     mutationFn: async () => {
-      const { error } = await supabase.rpc('submit_feedback', { p_session: id, p_answers: answers });
-      if (error) throw new Error(error.message);
+      await api.feedback.submit(id, answers);
     },
     onSuccess: () => {
       toast.success('Feedback submitted. Thank you!');

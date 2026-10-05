@@ -1,8 +1,7 @@
 import { useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
-import type { SupabaseClient } from '@supabase/supabase-js';
 import { toast } from 'sonner';
-import { must, supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 
 export type Col = {
   key: string;
@@ -21,15 +20,12 @@ type Props = {
   filters?: Record<string, string>;
 };
 
-// Generic over table names, so it uses the untyped client. RLS still decides what saves.
-const db = supabase as unknown as SupabaseClient;
-
 const friendly = (message: string) =>
   message.includes('duplicate key')
     ? 'This already exists.'
     : message.includes('foreign key')
     ? 'This row is in use elsewhere. Mark it inactive instead of deleting.'
-    : message.includes('row-level security')
+    : message.includes('row-level security') || message.includes('Unauthorized') || message.includes('Admin access required')
       ? 'You are not allowed to change this row.'
       : message;
 
@@ -38,16 +34,14 @@ export function TableEditor({ table, columns, pk = 'id', order, filters }: Props
   const queryClient = useQueryClient();
   const rows = useQuery({
     queryKey: [table, 'editor', filters],
-    queryFn: () => {
-      let q = db.from(table).select('*').order(order);
-      for (const [column, value] of Object.entries(filters ?? {})) q = q.eq(column, value);
-      return must(q) as Promise<Row[]>;
-    },
+    queryFn: () => api.tables.list(table, { ...filters, order }),
   });
 
   const save = useMutation({
     mutationFn: ({ original, draft }: { original?: Row; draft: Row }) =>
-      must(original ? db.from(table).update(draft).eq(pk, original[pk]) : db.from(table).insert(draft)),
+      original
+        ? api.tables.update(table, String(original[pk]), draft, pk)
+        : api.tables.create(table, draft),
     onSuccess: () => {
       toast.success('Saved');
       // Prefix match also refreshes dropdowns that read this table elsewhere.
@@ -58,8 +52,7 @@ export function TableEditor({ table, columns, pk = 'id', order, filters }: Props
 
   const remove = useMutation({
     mutationFn: async (row: Row) => {
-      const deleted = await must(db.from(table).delete().eq(pk, row[pk]).select());
-      if (!deleted?.length) throw new Error('row-level security');
+      await api.tables.delete(table, String(row[pk]), pk);
     },
     onSuccess: () => {
       toast.success('Deleted');

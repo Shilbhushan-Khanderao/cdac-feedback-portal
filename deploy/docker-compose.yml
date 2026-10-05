@@ -1,0 +1,92 @@
+services:
+  # ---------------------------------------------------------------- Database Layer
+  db:
+    image: postgres:16-alpine
+    container_name: cdac-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_pwd}
+      POSTGRES_DB: ${POSTGRES_DB:-cdac_feedback}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ../server/src/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
+      - ../server/src/db/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - internal_net
+
+  # ---------------------------------------------------------------- Fastify API Service
+  api:
+    build:
+      context: ../server
+      dockerfile: ../deploy/Dockerfile.server
+    container_name: cdac-api
+    restart: unless-stopped
+    environment:
+      PORT: 3000
+      HOST: 0.0.0.0
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_secure_pwd}@db:5432/${POSTGRES_DB:-cdac_feedback}
+      COOKIE_SECRET: ${COOKIE_SECRET:-cdac_super_secure_session_secret_cookie_must_be_32_chars!}
+      NODE_ENV: production
+      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
+      APP_URL: ${APP_URL:-http://localhost}
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal_net
+
+  # ---------------------------------------------------------------- Nginx Reverse Proxy & WAF
+  nginx:
+    image: nginx:alpine
+    container_name: cdac-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../dist:/usr/share/nginx/html:ro
+    depends_on:
+      - api
+    networks:
+      - internal_net
+
+  # ---------------------------------------------------------------- 180-Day Automated Encrypted Backup
+  backup:
+    image: alpine:latest
+    container_name: cdac-backup
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGUSER: ${POSTGRES_USER:-postgres}
+      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_pwd}
+      PGDATABASE: ${POSTGRES_DB:-cdac_feedback}
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-cdac_secret_backup_aes256_key}
+    volumes:
+      - ./backup:/scripts:ro
+      - backups_data:/backups
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        apk add --no-cache postgresql16-client openssl
+        echo "0 2 * * * /scripts/backup.sh >> /var/log/cron.log 2>&1" > /etc/crontabs/root
+        crond -f -l 8
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - internal_net
+
+volumes:
+  pgdata:
+  backups_data:
+
+networks:
+  internal_net:
+    driver: bridge

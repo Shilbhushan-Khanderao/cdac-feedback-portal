@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { useMe } from '../auth';
-import { must, supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import { fmt, sessionStatus, STATUS_STYLE, toLocalInput } from '../lib/format';
 import { cohortKey, useBatches, useCohortSizes, useCourses, useModules } from '../lib/reference';
 import { CohortPicker, cohortReady, emptyCohort, type Cohort } from './CohortPicker';
@@ -18,13 +18,7 @@ export function SessionsPage() {
   const sizes = useCohortSizes();
   const sessions = useQuery({
     queryKey: ['sessions'],
-    queryFn: () =>
-      must(
-        supabase
-          .from('feedback_sessions')
-          .select('id, batch_id, centre_id, course_id, opens_at, closes_at, modules(name), batches(label), centres(name), courses(code), submissions(session_id)')
-          .order('opens_at', { ascending: false }),
-      ),
+    queryFn: () => api.sessions.list(),
   });
 
   const rows = (sessions.data ?? []).filter(
@@ -101,19 +95,17 @@ function NewSession({ onDone }: { onDone: () => void }) {
 
   const create = useMutation({
     mutationFn: (form: FormData) =>
-      must(
-        supabase.from('feedback_sessions').insert(
-          // One session per centre: each centre keeps its own faculty, schedule and report.
-          cohort.centre_ids.map((centre_id) => ({
-            batch_id: cohort.batch_id,
-            centre_id,
-            course_id: cohort.course_id,
-            module_id: form.get('module') as string,
-            faculty: single ? faculty : [],
-            opens_at: new Date(form.get('opens') as string).toISOString(),
-            closes_at: new Date(form.get('closes') as string).toISOString(),
-          })),
-        ),
+      api.sessions.create(
+        // One session per centre: each centre keeps its own faculty, schedule and report.
+        cohort.centre_ids.map((centre_id) => ({
+          batch_id: cohort.batch_id,
+          centre_id,
+          course_id: cohort.course_id,
+          module_id: form.get('module') as string,
+          faculty: single ? faculty : [],
+          opens_at: new Date(form.get('opens') as string).toISOString(),
+          closes_at: new Date(form.get('closes') as string).toISOString(),
+        })),
       ),
     onSuccess: () => {
       toast.success(single ? 'Session created. Open it to copy the link for students.' : `${cohort.centre_ids.length} sessions created.`);

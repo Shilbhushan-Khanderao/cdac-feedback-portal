@@ -1,16 +1,15 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import { must, supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import { fmt, sessionStatus } from '../lib/format';
 
 export function StudentHome() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['my-sessions'],
     queryFn: async () => {
-      // RLS returns only sessions of the student's batch and only their own submissions.
       const [sessions, subs] = await Promise.all([
-        must(supabase.from('feedback_sessions').select('id, opens_at, closes_at, faculty, modules(name)').order('closes_at')),
-        must(supabase.from('submissions').select('session_id')),
+        api.sessions.list(),
+        api.feedback.mySubmissions(),
       ]);
       const done = new Set(subs.map((s) => s.session_id));
       return sessions.map((s) => ({ ...s, done: done.has(s.id), status: sessionStatus(s) }));

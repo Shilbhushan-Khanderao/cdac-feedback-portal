@@ -10,7 +10,11 @@
     "preview": "vite preview",
     "test": "vitest run",
     "test:db": "supabase db reset && supabase test db",
-    "types": "supabase gen types typescript --local > src/lib/database.types.ts"
+    "types": "supabase gen types typescript --local > src/lib/database.types.ts",
+    "server:dev": "npm --prefix server run dev",
+    "server:build": "npm --prefix server run build",
+    "server:test": "npm --prefix server test",
+    "test:load": "node server/node_modules/tsx/dist/cli.mjs tests/load/simulate-700-students.ts"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.9.0",

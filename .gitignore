@@ -1,15 +1,47 @@
+# Dependencies
 node_modules/
+server/node_modules/
+
+# Production builds
 dist/
-*.local
-*.tsbuildinfo
+server/dist/
+
+# Logs
 *.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment & Local Secrets
 .env
 .env.*
 !.env.example
+*.local
+
+# SSL Certificates & Private Keys
+deploy/nginx/ssl/*.crt
+deploy/nginx/ssl/*.key
+deploy/nginx/ssl/*.pem
+deploy/nginx/ssl/*.csr
+
+# Backups & Database Dumps
+*.sql.enc
+*.dump
+deploy/backup/storage/
+incident_*.sql
+incident_*.log
+
+# TypeScript
+*.tsbuildinfo
+
+# OS & Editor
+.DS_Store
+Thumbs.db
 .vscode/*
 .idea
-.DS_Store
+.claude/settings.local.json
+
+# Supabase legacy
 supabase/.branches/
 supabase/.temp/
-.claude/settings.local.json
 supabase/private/

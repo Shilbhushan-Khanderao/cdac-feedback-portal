@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import { useFaculty } from '../lib/reference';
 
 /** Tick faculty of one centre (plus shared ones), or add a missing name to that centre. */
@@ -27,17 +27,17 @@ export function FacultyPicker({ centreId, value, onChange }: { centreId: string;
       return toast.info(`${existing} is already in the list, ticked.`);
     }
     setAdding(true);
-    const { error } = await supabase.from('faculty').insert({ name, centre_id: centreId });
-    setAdding(false);
-    if (error) {
-      return toast.error(
-        error.code === '23505' ? `${name} already exists at another centre. Ask the admin to mark them shared.` : error.message,
-      );
+    try {
+      await api.reference.addFaculty(name, centreId);
+      toast.success(`${name} added to faculty`);
+      setNewName('');
+      onChange([...value, name]);
+      void queryClient.invalidateQueries({ queryKey: ['faculty'] });
+    } catch (err: any) {
+      toast.error(err.message || 'Failed to add faculty');
+    } finally {
+      setAdding(false);
     }
-    toast.success(`${name} added to faculty`);
-    setNewName('');
-    onChange([...value, name]);
-    void queryClient.invalidateQueries({ queryKey: ['faculty'] });
   };
 
   return (

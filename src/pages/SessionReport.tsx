@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toPng } from 'html-to-image';
 import { toast } from 'sonner';
-import { must, supabase } from '../lib/supabase';
+import { api } from '../lib/api';
 import { fmt, sessionStatus, STATUS_STYLE, toLocalInput } from '../lib/format';
 import { aggregate, toCsv, type Answers, type Question } from '../reports/aggregate';
 import { PieChart } from '../reports/PieChart';
@@ -29,27 +29,17 @@ export default function SessionReport() {
   const { data, isLoading, error } = useQuery({
     queryKey: ['report', id],
     queryFn: async () => {
-      const session = await must(
-        supabase
-          .from('feedback_sessions')
-          .select('*, modules(name, short_name), batches(label), centres(name), courses(code)')
-          .eq('id', id)
-          .maybeSingle(),
-      );
+      const session = await api.sessions.get(id).catch(() => null);
       if (!session) return null;
       const [result, submissions, roster] = await Promise.all([
         // Answers come only from session_report(): after close, at least 3, in random order.
-        must(supabase.rpc('session_report', { p_session: id })),
-        must(supabase.from('submissions').select('email').eq('session_id', id)),
-        must(
-          supabase
-            .from('student_roster')
-            .select('email, prn, full_name')
-            .eq('batch_id', session.batch_id)
-            .eq('centre_id', session.centre_id)
-            .eq('course_id', session.course_id)
-            .order('prn'),
-        ),
+        api.reports.get(id),
+        api.feedback.submissions(id),
+        api.roster.list({
+          batch_id: session.batch_id,
+          centre_id: session.centre_id,
+          course_id: session.course_id,
+        }),
       ]);
       const submitted = new Set(submissions.map((s) => s.email));
       const answers = result as { status: 'open' | 'too_few' | 'ready'; answers: Answers[] };
@@ -69,14 +59,10 @@ export default function SessionReport() {
 
   const reschedule = useMutation({
     mutationFn: (form: FormData) =>
-      must(
-        supabase
-          .from('feedback_sessions')
-          .update({
-            opens_at: new Date(form.get('opens') as string).toISOString(),
-            closes_at: new Date(form.get('closes') as string).toISOString(),
-          })
-          .eq('id', id),
+      api.sessions.reschedule(
+        id,
+        new Date(form.get('opens') as string).toISOString(),
+        new Date(form.get('closes') as string).toISOString(),
       ),
     onSuccess: () => {
       toast.success('Schedule updated');
@@ -87,7 +73,7 @@ export default function SessionReport() {
   });
 
   const saveFaculty = useMutation({
-    mutationFn: (faculty: string[]) => must(supabase.from('feedback_sessions').update({ faculty }).eq('id', id)),
+    mutationFn: (faculty: string[]) => api.sessions.updateFaculty(id, faculty),
     onSuccess: () => {
       toast.success('Faculty updated');
       setFacultyDraft(null);
@@ -97,7 +83,7 @@ export default function SessionReport() {
   });
 
   const remove = useMutation({
-    mutationFn: () => must(supabase.from('feedback_sessions').delete().eq('id', id)),
+    mutationFn: () => api.sessions.delete(id),
     onSuccess: () => {
       toast.success('Session deleted');
       void queryClient.invalidateQueries({ queryKey: ['sessions'] });

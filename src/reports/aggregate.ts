@@ -28,6 +28,12 @@ export function aggregate(questions: Question[], answers: Answers[]) {
   };
 }
 
+// Prepend single quote if cell starts with formula trigger characters (=, +, -, @, tab, cr)
+const sanitizeCsvCell = (val: string) => (/^[=+\-@\t\r]/.test(val) ? `'${val}` : val);
+
 /** Same shape as the v1 Google-Form CSV: one column per question, one row per response. */
 export const toCsv = (questions: Question[], answers: Answers[]) =>
-  Papa.unparse({ fields: questions.map((q) => q.text), data: answers.map((a) => questions.map((q) => a[q.id] ?? '')) });
+  Papa.unparse({
+    fields: questions.map((q) => sanitizeCsvCell(q.text)),
+    data: answers.map((a) => questions.map((q) => sanitizeCsvCell(a[q.id] ?? ''))),
+  });
