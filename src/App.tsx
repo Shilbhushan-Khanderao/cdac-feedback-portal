@@ -1,5 +1,5 @@
-import { lazy, Suspense } from 'react';
-import { createHashRouter, NavLink, Outlet, RouterProvider } from 'react-router';
+import { lazy, Suspense, type ReactNode } from 'react';
+import { createHashRouter, Navigate, NavLink, Outlet, RouterProvider } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { AuthGate, isStaff, useMe } from './auth';
@@ -13,15 +13,37 @@ import { ManagePage } from './pages/ManagePage';
 // Charts, NLP and PDF code load only when staff open a report.
 const SessionReport = lazy(() => import('./pages/SessionReport'));
 
-const NAV = [
-  { to: '/', label: 'Dashboard', end: true },
-  { to: '/sessions', label: 'Sessions' },
-  { to: '/roster', label: 'Students' },
-  { to: '/manage', label: 'Setup' },
+interface NavItem {
+  to: string;
+  label: string;
+  end?: boolean;
+  roles: Array<'student' | 'cc' | 'admin'>;
+}
+
+const NAV: NavItem[] = [
+  { to: '/', label: 'Dashboard', end: true, roles: ['cc', 'admin'] },
+  { to: '/sessions', label: 'Sessions', roles: ['cc', 'admin'] },
+  { to: '/roster', label: 'Students', roles: ['cc', 'admin'] },
+  { to: '/manage', label: 'Setup', roles: ['cc', 'admin'] },
 ];
+
+function RoleRoute({
+  allowedRoles,
+  children,
+}: {
+  allowedRoles: Array<'student' | 'cc' | 'admin'>;
+  children: ReactNode;
+}) {
+  const me = useMe();
+  if (!allowedRoles.includes(me.role)) {
+    return <Navigate to="/" replace />;
+  }
+  return <>{children}</>;
+}
 
 function Layout() {
   const me = useMe();
+  const visibleNav = NAV.filter((n) => n.roles.includes(me.role));
   const link = ({ isActive }: { isActive: boolean }) =>
     `rounded-md px-3 py-2 text-sm transition-colors duration-150 ${isActive ? 'bg-brand-50 font-semibold text-brand-800' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'}`;
   return (
@@ -35,9 +57,9 @@ function Layout() {
             </svg>
             Module Feedback
           </span>
-          {isStaff(me) && (
+          {isStaff(me) && visibleNav.length > 0 && (
             <nav className="order-last flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto" aria-label="Main">
-              {NAV.map((n) => (
+              {visibleNav.map((n) => (
                 <NavLink key={n.to} to={n.to} end={n.end} className={link}>
                   {n.label}
                 </NavLink>
@@ -76,12 +98,47 @@ const router = createHashRouter([
     element: <Layout />,
     children: [
       { path: '/', element: <Home /> },
-      { path: '/sessions', element: <SessionsPage /> },
-      { path: '/feedback/:id', element: <FeedbackForm /> },
-      { path: '/sessions/:id', element: <SessionReport /> },
-      { path: '/roster', element: <RosterPage /> },
-      { path: '/manage', element: <ManagePage /> },
-      { path: '*', element: <Home /> },
+      {
+        path: '/sessions',
+        element: (
+          <RoleRoute allowedRoles={['cc', 'admin']}>
+            <SessionsPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/feedback/:id',
+        element: (
+          <RoleRoute allowedRoles={['student']}>
+            <FeedbackForm />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/sessions/:id',
+        element: (
+          <RoleRoute allowedRoles={['cc', 'admin']}>
+            <SessionReport />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/roster',
+        element: (
+          <RoleRoute allowedRoles={['cc', 'admin']}>
+            <RosterPage />
+          </RoleRoute>
+        ),
+      },
+      {
+        path: '/manage',
+        element: (
+          <RoleRoute allowedRoles={['cc', 'admin']}>
+            <ManagePage />
+          </RoleRoute>
+        ),
+      },
+      { path: '*', element: <Navigate to="/" replace /> },
     ],
   },
 ]);

@@ -18,12 +18,22 @@ export function ManagePage() {
   const me = useMe();
   const tabs = TABS.filter((t) => !t.adminOnly || me.role === 'admin');
   const [tab, setTab] = useState(tabs[0].id);
-  const [courseId, setCourseId] = useState('');
+  const [courseId, setCourseId] = useState<string>(() => (me.role === 'cc' && me.course_id ? me.course_id : ''));
 
   const centres = useCentres();
   const courses = useCourses();
-  const centreOpts = centres.data?.map((c) => ({ value: c.id, label: c.name })) ?? [];
-  const courseOpts = courses.data?.map((c) => ({ value: c.id, label: c.code })) ?? [];
+  
+  // Scoped centre options: CC can only select their own centre or leave empty for shared
+  const centreOpts = (centres.data ?? [])
+    .filter((c) => me.role === 'admin' || !me.centre_id || c.id === me.centre_id)
+    .map((c) => ({ value: c.id, label: c.name }));
+
+  // Scoped course options: CC assigned to a course can only manage that course
+  const courseOpts = (courses.data ?? [])
+    .filter((c) => me.role === 'admin' || !me.course_id || c.id === me.course_id)
+    .map((c) => ({ value: c.id, label: c.code }));
+
+  const activeCourseId = me.role === 'cc' && me.course_id ? me.course_id : courseId;
 
   const columns: Record<string, Col[]> = {
     batches: [
@@ -67,11 +77,11 @@ export function ManagePage() {
     ],
   };
   const order: Record<string, string> = { batches: 'label', modules: 'sort_order', faculty: 'name', courses: 'code', centres: 'name', staff_roster: 'full_name', questions: 'sort_order' };
-  const current = tabs.find((t) => t.id === tab)!;
+  const current = tabs.find((t) => t.id === tab) ?? tabs[0];
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-semibold">Setup</h1>
+      <h1 className="text-lg font-semibold">{me.role === 'admin' ? 'System Setup' : 'Course & Faculty Setup'}</h1>
       <div className="flex flex-wrap gap-1" role="tablist">
         {tabs.map((t) => (
           <button
@@ -89,16 +99,26 @@ export function ManagePage() {
 
       {tab === 'modules' ? (
         <>
-          <select className="input w-auto" aria-label="Course" value={courseId} onChange={(e) => setCourseId(e.target.value)}>
-            <option value="">Select course</option>
-            {courseOpts.map((c) => (
-              <option key={c.value} value={c.value}>
-                {c.label}
-              </option>
-            ))}
-          </select>
-          {courseId && (
-            <TableEditor key={courseId} table="modules" columns={columns.modules} order="sort_order" filters={{ course_id: courseId }} />
+          {me.role === 'cc' && me.course_id ? (
+            <div className="flex items-center gap-2 py-1">
+              <span className="text-sm font-medium text-stone-700">Course:</span>
+              <span className="rounded-md bg-brand-50 px-3 py-1.5 text-sm font-semibold text-brand-800 border border-brand-200">
+                {courses.data?.find((c) => c.id === me.course_id)?.code ?? 'Assigned Course'}
+              </span>
+              <span className="text-xs text-stone-500">(Modules scoped to your assigned course)</span>
+            </div>
+          ) : (
+            <select className="input w-auto" aria-label="Course" value={activeCourseId} onChange={(e) => setCourseId(e.target.value)}>
+              <option value="">Select course</option>
+              {courseOpts.map((c) => (
+                <option key={c.value} value={c.value}>
+                  {c.label}
+                </option>
+              ))}
+            </select>
+          )}
+          {activeCourseId && (
+            <TableEditor key={activeCourseId} table="modules" columns={columns.modules} order="sort_order" filters={{ course_id: activeCourseId }} />
           )}
         </>
       ) : (

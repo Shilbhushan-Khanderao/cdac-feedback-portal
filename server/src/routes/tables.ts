@@ -61,7 +61,83 @@ export const TABLE_CONFIGS: Record<string, TableConfig> = {
   },
 };
 
-const STAFF_WRITABLE = ['faculty', 'student_roster'];
+const STAFF_WRITABLE = ['faculty', 'student_roster', 'modules'];
+
+async function checkStaffTablePermission(
+  client: any,
+  user: { email: string; role: string },
+  table: string,
+  action: 'create' | 'update' | 'delete',
+  id?: string,
+  body?: Record<string, any>
+): Promise<{ allowed: boolean; reason?: string }> {
+  if (user.role === 'admin') return { allowed: true };
+  if (!STAFF_WRITABLE.includes(table)) {
+    return { allowed: false, reason: 'Admin access required' };
+  }
+
+  // CC specific scoping checks
+  if (user.role === 'cc') {
+    const staffRes = await client.query(
+      'SELECT centre_id, course_id FROM public.staff_roster WHERE email = $1',
+      [user.email]
+    );
+    const staff = staffRes.rows[0];
+    if (!staff) return { allowed: false, reason: 'Staff record not found' };
+
+    if (table === 'modules') {
+      if (staff.course_id) {
+        if (action === 'create') {
+          if (body?.course_id !== staff.course_id) {
+            return { allowed: false, reason: 'Forbidden: You can only add modules for your assigned course' };
+          }
+        } else if (action === 'update' || action === 'delete') {
+          const modRes = await client.query('SELECT course_id FROM public.modules WHERE id = $1', [id]);
+          if (!modRes.rows[0]) return { allowed: false, reason: 'Module not found' };
+          if (modRes.rows[0].course_id !== staff.course_id) {
+            return { allowed: false, reason: 'Forbidden: You can only edit/delete modules for your assigned course' };
+          }
+          if (action === 'update' && body?.course_id && body.course_id !== staff.course_id) {
+            return { allowed: false, reason: 'Forbidden: Cannot change module course assignment' };
+          }
+        }
+      }
+    } else if (table === 'faculty') {
+      if (staff.centre_id) {
+        if (action === 'create' && body?.centre_id && body.centre_id !== staff.centre_id) {
+          return { allowed: false, reason: 'Forbidden: You can only add faculty for your centre or shared' };
+        } else if (action === 'update') {
+          if (body?.centre_id && body.centre_id !== staff.centre_id) {
+            return { allowed: false, reason: 'Forbidden: You can only assign faculty to your centre or shared' };
+          }
+          const facRes = await client.query('SELECT centre_id FROM public.faculty WHERE id = $1', [id]);
+          if (facRes.rows[0]?.centre_id && facRes.rows[0].centre_id !== staff.centre_id) {
+            return { allowed: false, reason: 'Forbidden: You can only edit faculty for your centre' };
+          }
+        } else if (action === 'delete') {
+          const facRes = await client.query('SELECT centre_id FROM public.faculty WHERE id = $1', [id]);
+          if (facRes.rows[0]?.centre_id && facRes.rows[0].centre_id !== staff.centre_id) {
+            return { allowed: false, reason: 'Forbidden: You can only delete faculty for your centre' };
+          }
+        }
+      }
+    } else if (table === 'student_roster') {
+      const targetCentre = body?.centre_id;
+      const targetCourse = body?.course_id;
+      if (targetCentre && targetCourse) {
+        const canManageRes = await client.query(
+          'SELECT public.can_manage($1, $2) AS allowed',
+          [targetCentre, targetCourse]
+        );
+        if (!canManageRes.rows[0]?.allowed) {
+          return { allowed: false, reason: 'Forbidden: You cannot manage student roster for this cohort' };
+        }
+      }
+    }
+  }
+
+  return { allowed: true };
+}
 
 export const tablesRoutes: FastifyPluginAsync = async (app) => {
   app.addHook('preHandler', requireStaff);
@@ -126,10 +202,6 @@ export const tablesRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: 'Table not found' });
     }
 
-    if (req.user!.role !== 'admin' && !STAFF_WRITABLE.includes(table)) {
-      return reply.status(403).send({ error: 'Admin access required' });
-    }
-
     const body = (req.body && typeof req.body === 'object' ? req.body : {}) as Record<string, any>;
     const keys = Object.keys(body).filter(
       (k) => tableCfg.writableColumns.includes(k) && body[k] !== undefined
@@ -145,11 +217,18 @@ export const tablesRoutes: FastifyPluginAsync = async (app) => {
     const sql = `INSERT INTO public.${table} (${keys.join(', ')}) VALUES (${placeholders}) RETURNING ${returnCols}`;
     try {
       const res = await withUser(req.user!.email, async (client) => {
+        const perm = await checkStaffTablePermission(client, req.user!, table, 'create', undefined, body);
+        if (!perm.allowed) {
+          throw new Error(`PERM_DENIED: ${perm.reason}`);
+        }
         const r = await client.query(sql, values);
         return r.rows[0];
       });
       return reply.status(201).send(res);
     } catch (err: any) {
+      if (err.message?.startsWith('PERM_DENIED: ')) {
+        return reply.status(403).send({ error: err.message.replace('PERM_DENIED: ', '') });
+      }
       req.log.warn({ err, table }, 'Table insert failed');
       return reply.status(400).send({ error: sanitizeDbError(err) });
     }
@@ -161,10 +240,6 @@ export const tablesRoutes: FastifyPluginAsync = async (app) => {
     const tableCfg = TABLE_CONFIGS[table];
     if (!tableCfg) {
       return reply.status(404).send({ error: 'Table not found' });
-    }
-
-    if (req.user!.role !== 'admin' && !STAFF_WRITABLE.includes(table)) {
-      return reply.status(403).send({ error: 'Admin access required' });
     }
 
     const pkCol = tableCfg.pk;
@@ -183,6 +258,10 @@ export const tablesRoutes: FastifyPluginAsync = async (app) => {
     const sql = `UPDATE public.${table} SET ${setClauses} WHERE ${pkCol} = $1 RETURNING ${returnCols}`;
     try {
       const res = await withUser(req.user!.email, async (client) => {
+        const perm = await checkStaffTablePermission(client, req.user!, table, 'update', id, body);
+        if (!perm.allowed) {
+          throw new Error(`PERM_DENIED: ${perm.reason}`);
+        }
         const r = await client.query(sql, values);
         return r.rows[0] ?? null;
       });
@@ -192,6 +271,9 @@ export const tablesRoutes: FastifyPluginAsync = async (app) => {
       }
       return res;
     } catch (err: any) {
+      if (err.message?.startsWith('PERM_DENIED: ')) {
+        return reply.status(403).send({ error: err.message.replace('PERM_DENIED: ', '') });
+      }
       req.log.warn({ err, table, id }, 'Table update failed');
       return reply.status(400).send({ error: sanitizeDbError(err) });
     }
@@ -205,14 +287,14 @@ export const tablesRoutes: FastifyPluginAsync = async (app) => {
       return reply.status(404).send({ error: 'Table not found' });
     }
 
-    if (req.user!.role !== 'admin' && !STAFF_WRITABLE.includes(table)) {
-      return reply.status(403).send({ error: 'Admin access required' });
-    }
-
     const pkCol = tableCfg.pk;
 
     try {
       const res = await withUser(req.user!.email, async (client) => {
+        const perm = await checkStaffTablePermission(client, req.user!, table, 'delete', id);
+        if (!perm.allowed) {
+          throw new Error(`PERM_DENIED: ${perm.reason}`);
+        }
         const r = await client.query(`DELETE FROM public.${table} WHERE ${pkCol} = $1 RETURNING ${pkCol}`, [id]);
         return r.rows[0] ?? null;
       });
@@ -222,6 +304,9 @@ export const tablesRoutes: FastifyPluginAsync = async (app) => {
       }
       return reply.send({ ok: true });
     } catch (err: any) {
+      if (err.message?.startsWith('PERM_DENIED: ')) {
+        return reply.status(403).send({ error: err.message.replace('PERM_DENIED: ', '') });
+      }
       req.log.warn({ err, table, id }, 'Table delete failed');
       return reply.status(400).send({ error: sanitizeDbError(err) });
     }
