@@ -117,7 +117,7 @@ export function buildApp() {
       const un = raw ? req.unsignCookie(raw) : null;
       return un?.valid && un.value ? `s:${un.value.slice(0, 16)}` : `ip:${req.ip}`;
     },
-    max: (req, key) => (key.startsWith('auth:') ? 600 : key.startsWith('s:') ? 240 : 120),
+    max: (req, key) => (key.startsWith('auth:') ? 1500 : key.startsWith('s:') ? 240 : 1500),
     timeWindow: '1 minute',
   });
 
