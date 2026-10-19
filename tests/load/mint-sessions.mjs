@@ -17,6 +17,7 @@ for (const k of ['DATABASE_URL', 'COOKIE_SECRET', 'TARGET_SESSION_ID']) if (!E[k
 const N = +(E.N || 1500), ccEmails = (E.CC_EMAILS || 'cc@test.local').split(',');
 // Same format as @fastify/cookie sign(): value + '.' + base64(HMAC-SHA256) without padding.
 const sign = (v) => `${v}.${crypto.createHmac('sha256', E.COOKIE_SECRET).update(v).digest('base64').replace(/=+$/, '')}`;
+const h = (t) => crypto.createHash('sha256').update(t).digest('hex'); // server stores sha256(token)
 const cookie = (id) => `cdac_session=${encodeURIComponent(sign(id))}`;
 
 const db = new pg.Client({ connectionString: E.DATABASE_URL });
@@ -31,14 +32,14 @@ try {
     const n = String(i).padStart(4, '0'), email = `load${n}@loadtest.local`, id = crypto.randomBytes(32).toString('hex');
     await db.query(`INSERT INTO public.student_roster (email,prn,full_name,batch_id,centre_id,course_id)
                     VALUES ($1,$2,$3,$4,$5,$6) ON CONFLICT (email) DO NOTHING`, [email, `LOAD${n}`, `Load Student ${i}`, s.batch_id, s.centre_id, s.course_id]);
-    await db.query(`INSERT INTO public.user_sessions (id,email,role,expires_at) VALUES ($1,$2,'student', now()+interval '6 hours')`, [id, email]);
+    await db.query(`INSERT INTO public.user_sessions (id,email,role,expires_at) VALUES ($1,$2,'student', now()+interval '6 hours')`, [h(id), email]);
     students.push(cookie(id));
   }
   for (const email of ccEmails) {
     const { rows: [r] } = await db.query('SELECT role FROM public.staff_roster WHERE email=$1', [email]);
     if (!r) throw new Error(`${email} not in staff_roster`);
     const id = crypto.randomBytes(32).toString('hex');
-    await db.query(`INSERT INTO public.user_sessions (id,email,role,expires_at) VALUES ($1,$2,$3, now()+interval '6 hours')`, [id, email, r.role]);
+    await db.query(`INSERT INTO public.user_sessions (id,email,role,expires_at) VALUES ($1,$2,$3, now()+interval '6 hours')`, [h(id), email, r.role]);
     cc.push(cookie(id));
   }
   await db.query('COMMIT');
