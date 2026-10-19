@@ -4,8 +4,12 @@
 
 -- Centres
 INSERT INTO public.centres (name, kind) VALUES 
-  ('C-DAC Mumbai', 'cdac'),
-  ('Test ATC', 'atc')
+  ('C-DAC Mumbai', 'cdac')
+ON CONFLICT (name) DO NOTHING;
+
+INSERT INTO public.centres (name, kind, parent_id)
+SELECT 'Test ATC', 'atc', id
+  FROM public.centres WHERE name = 'C-DAC Mumbai'
 ON CONFLICT (name) DO NOTHING;
 
 -- Courses
@@ -123,3 +127,33 @@ SELECT 'student3@test.local', 'PRN003', 'Charlie ATC Student', b.id, cen.id, co.
   FROM public.batches b, public.centres cen, public.courses co
  WHERE b.label = 'Aug 2026' AND cen.name = 'Test ATC' AND co.code = 'PGCP-AC'
 ON CONFLICT (email) DO NOTHING;
+
+-- Test Feedback Sessions
+INSERT INTO public.feedback_sessions (id, batch_id, centre_id, course_id, module_id, faculty, opens_at, closes_at)
+SELECT '00000000-0000-0000-0000-0000000000c1'::uuid, b.id, cen.id, co.id, m.id, '{Test Faculty Mumbai}'::text[],
+       now() - interval '1 day', now() + interval '7 days'
+  FROM public.batches b, public.centres cen, public.courses co, public.modules m
+ WHERE b.label = 'Aug 2026' AND cen.name = 'C-DAC Mumbai' AND co.code = 'PGCP-AC' AND m.short_name = 'LBS' AND m.course_id = co.id
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.feedback_sessions (id, batch_id, centre_id, course_id, module_id, faculty, opens_at, closes_at)
+SELECT '00000000-0000-0000-0000-0000000000c2'::uuid, b.id, cen.id, co.id, m.id, '{Test Faculty Mumbai}'::text[],
+       now() - interval '10 days', now() - interval '3 days'
+  FROM public.batches b, public.centres cen, public.courses co, public.modules m
+ WHERE b.label = 'Aug 2026' AND cen.name = 'C-DAC Mumbai' AND co.code = 'PGCP-AC' AND m.short_name = 'OS' AND m.course_id = co.id
+ON CONFLICT (id) DO NOTHING;
+
+INSERT INTO public.feedback_sessions (id, batch_id, centre_id, course_id, module_id, faculty, opens_at, closes_at)
+SELECT '00000000-0000-0000-0000-0000000000c3'::uuid, b.id, cen.id, co.id, m.id, '{Test Faculty ATC}'::text[],
+       now() - interval '1 day', now() + interval '7 days'
+  FROM public.batches b, public.centres cen, public.courses co, public.modules m
+ WHERE b.label = 'Aug 2026' AND cen.name = 'Test ATC' AND co.code = 'PGCP-AC' AND m.short_name = 'LBS' AND m.course_id = co.id
+ON CONFLICT (id) DO NOTHING;
+
+-- Seed student1 submission on session c1
+INSERT INTO public.submissions (session_id, email)
+VALUES ('00000000-0000-0000-0000-0000000000c1', 'student1@test.local')
+ON CONFLICT DO NOTHING;
+
+INSERT INTO public.responses (session_id, answers)
+VALUES ('00000000-0000-0000-0000-0000000000c1', '{"explanation":"Good","pace":"Normal","interaction":"Good","practical":"Good","overall":"Good"}'::jsonb);

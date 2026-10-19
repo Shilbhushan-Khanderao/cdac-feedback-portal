@@ -5,25 +5,8 @@ import { Bar, BarChart, CartesianGrid, LabelList, Line, LineChart, ResponsiveCon
 import { useMe } from '../auth';
 import { fmt, sessionStatus } from '../lib/format';
 import { CATEGORICAL, INK, RATING_COLORS, RATING_ORDER, RATING_SCORE } from '../lib/palette';
-import { api } from '../lib/api';
-
-type Row = {
-  id: string;
-  batch_id: string;
-  centre_id: string;
-  course_id: string;
-  opens_at: string;
-  closes_at: string;
-  faculty: string[];
-  batch: string;
-  centre: string;
-  course: string;
-  module: string;
-  students: number;
-  submitted: number;
-  /** Rating word -> count. null until the session has closed with at least 3 responses. */
-  ratings: Record<string, number> | null;
-};
+import { api, type DashboardReportRow as Row } from '../lib/api';
+import { KPISummary } from './dashboard/KPISummary';
 
 const total = (r: Record<string, number>) => Object.values(r).reduce((a, b) => a + b, 0);
 const mean = (r: Record<string, number>) => {
@@ -110,16 +93,16 @@ export function DashboardPage() {
         </div>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi label="Sessions" value={rows.length} hint={`${open} open now`} />
-            <Kpi label="Response rate" value={`${pct(submitted, students)}%`} hint={`${submitted} of ${students} students`} />
-            <Kpi
-              label="Average rating"
-              value={ready.length ? `${round1(mean(all))} / 5` : '–'}
-              hint={ready.length ? `${total(all)} answers, ${ready.length} sessions` : 'No closed sessions yet'}
-            />
-            <Kpi label="Awaiting results" value={awaiting} hint="Closed, fewer than 3 responses" />
-          </div>
+          <KPISummary
+            sessionCount={rows.length}
+            openCount={open}
+            responseRatePct={pct(submitted, students)}
+            submittedCount={submitted}
+            studentsCount={students}
+            avgRating={ready.length ? `${round1(mean(all))} / 5` : '–'}
+            avgRatingHint={ready.length ? `${total(all)} answers, ${ready.length} sessions` : 'No closed sessions yet'}
+            awaitingCount={awaiting}
+          />
 
           <div className="grid gap-4 lg:grid-cols-2">
             <Panel title="Response rate" sub={byCentre ? 'By centre' : 'By module'} empty={!rateGroups.length}>
@@ -196,15 +179,7 @@ function Filter({ label, value, onChange, options }: { label: string; value: str
   );
 }
 
-function Kpi({ label, value, hint }: { label: string; value: ReactNode; hint: string }) {
-  return (
-    <div className="card">
-      <p className="muted">{label}</p>
-      <p className="num mt-1 text-3xl font-semibold tracking-tight">{value}</p>
-      <p className="muted mt-1">{hint}</p>
-    </div>
-  );
-}
+
 
 function Panel({ title, sub, empty, emptyText, children }: { title: string; sub?: string; empty?: boolean; emptyText?: string; children: ReactNode }) {
   return (

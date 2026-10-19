@@ -2,6 +2,7 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { requireAuth, requireStaff } from '../auth/guard.js';
 import { withUser } from '../db/pool.js';
+import { isUuid } from '../lib/validate.js';
 
 export const feedbackRoutes: FastifyPluginAsync = async (app) => {
   app.addHook('preHandler', requireAuth);
@@ -18,8 +19,11 @@ export const feedbackRoutes: FastifyPluginAsync = async (app) => {
   });
 
   // ---------------------------------------------------------------- Session Submissions List (Staff only)
-  app.get('/submissions/:sessionId', { preHandler: requireStaff }, async (req) => {
+  app.get('/submissions/:sessionId', { preHandler: requireStaff }, async (req, reply) => {
     const { sessionId } = req.params as { sessionId: string };
+    if (!isUuid(sessionId)) {
+      return reply.status(400).send({ error: 'Invalid session ID format' });
+    }
     return withUser(req.user!.email, async (client) => {
       const res = await client.query<{ email: string }>(
         'SELECT email FROM public.submissions WHERE session_id = $1',

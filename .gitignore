@@ -50,3 +50,7 @@ supabase/private/
 .agents/
 .claude/
 
+# Local Dev DB
+.dev_db/
+
+

@@ -3,7 +3,6 @@ import { createHashRouter, NavLink, Outlet, RouterProvider } from 'react-router'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { AuthGate, isStaff, useMe } from './auth';
-import { api } from './lib/api';
 import { StudentHome } from './pages/StudentHome';
 import { FeedbackForm } from './pages/FeedbackForm';
 import { DashboardPage } from './pages/DashboardPage';
@@ -49,7 +48,12 @@ function Layout() {
             <span className="hidden truncate text-stone-600 sm:inline">{me.full_name}</span>
             <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium capitalize text-stone-600">{me.role === 'cc' ? 'Coordinator' : me.role}</span>
           </span>
-          <button className="btn px-3 py-1.5" onClick={() => void api.auth.logout().then(() => window.location.reload())}>
+          <button
+            className="btn px-3 py-1.5"
+            onClick={() => {
+              window.location.href = '/auth/logout';
+            }}
+          >
             Sign out
           </button>
         </div>

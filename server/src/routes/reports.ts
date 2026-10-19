@@ -1,6 +1,7 @@
 import type { FastifyPluginAsync } from 'fastify';
 import { requireStaff } from '../auth/guard.js';
 import { withUser } from '../db/pool.js';
+import { isUuid } from '../lib/validate.js';
 
 export const reportRoutes: FastifyPluginAsync = async (app) => {
   app.addHook('preHandler', requireStaff);
@@ -16,6 +17,9 @@ export const reportRoutes: FastifyPluginAsync = async (app) => {
   // ---------------------------------------------------------------- Session Report
   app.get('/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
+    if (!isUuid(id)) {
+      return reply.status(400).send({ error: 'Invalid session ID format' });
+    }
 
     try {
       const report = await withUser(req.user!.email, async (client) => {

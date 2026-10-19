@@ -16,23 +16,35 @@ export async function runMigrations() {
     await client.query(schemaSql);
     await client.query('COMMIT');
     console.log('[migrate] Schema applied successfully.');
-
-    const seedPath = path.join(__dirname, 'seed.sql');
-    try {
-      const seedSql = await fs.readFile(seedPath, 'utf8');
-      await client.query('BEGIN');
-      await client.query(seedSql);
-      await client.query('COMMIT');
-      console.log('[migrate] Seed data applied successfully.');
-    } catch (e: any) {
-      if (e.code !== 'ENOENT') throw e;
-    }
   } catch (err) {
     await client.query('ROLLBACK');
     console.error('[migrate] Migration failed:', err);
     throw err;
   } finally {
     client.release();
+  }
+
+  // Seed runs in a separate transaction so a seed error
+  // doesn't attempt ROLLBACK on the already-committed schema.
+  const seedPath = path.join(__dirname, 'seed.sql');
+  try {
+    const seedSql = await fs.readFile(seedPath, 'utf8');
+    const seedClient = await pool.connect();
+    try {
+      await seedClient.query('BEGIN');
+      await seedClient.query(seedSql);
+      await seedClient.query('COMMIT');
+      console.log('[migrate] Seed data applied successfully.');
+    } catch (seedErr) {
+      await seedClient.query('ROLLBACK');
+      console.error('[migrate] Seed failed:', seedErr);
+      throw seedErr;
+    } finally {
+      seedClient.release();
+    }
+  } catch (e: any) {
+    if (e.code !== 'ENOENT') throw e;
+    // seed.sql is optional
   }
 }
 

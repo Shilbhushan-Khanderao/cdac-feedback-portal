@@ -2,22 +2,29 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { requireAuth, requireStaff } from '../auth/guard.js';
 import { withUser } from '../db/pool.js';
+import { isUuid } from '../lib/validate.js';
 
 export const sessionRoutes: FastifyPluginAsync = async (app) => {
   app.addHook('preHandler', requireAuth);
 
   // ---------------------------------------------------------------- List Sessions
   app.get('/', async (req) => {
+    const queryParams = req.query as { limit?: string; offset?: string };
+    const limit = Math.min(Math.max(parseInt(queryParams.limit || '100', 10) || 100, 1), 500);
+    const offset = Math.max(parseInt(queryParams.offset || '0', 10) || 0, 0);
+
     return withUser(req.user!.email, async (client) => {
       if (req.user!.role === 'student') {
         const res = await client.query(`
           SELECT s.id, s.opens_at, s.closes_at, s.faculty,
+                 COALESCE(jsonb_array_length(s.questions), 0)::int AS question_count,
                  jsonb_build_object('name', m.name) AS modules
             FROM public.feedback_sessions s
             JOIN public.modules m ON m.id = s.module_id
            WHERE public.in_my_cohort(s.batch_id, s.centre_id, s.course_id)
            ORDER BY s.closes_at ASC
-        `);
+           LIMIT $1 OFFSET $2
+        `, [limit, offset]);
         return res.rows;
       }
 
@@ -41,7 +48,8 @@ export const sessionRoutes: FastifyPluginAsync = async (app) => {
           LEFT JOIN public.courses co ON co.id = s.course_id
          WHERE public.can_manage(s.centre_id, s.course_id)
          ORDER BY s.opens_at DESC
-      `);
+         LIMIT $1 OFFSET $2
+      `, [limit, offset]);
       return res.rows;
     });
   });
@@ -49,6 +57,9 @@ export const sessionRoutes: FastifyPluginAsync = async (app) => {
   // ---------------------------------------------------------------- Single Session
   app.get('/:id', async (req, reply) => {
     const { id } = req.params as { id: string };
+    if (!isUuid(id)) {
+      return reply.status(400).send({ error: 'Invalid session ID format' });
+    }
     const session = await withUser(req.user!.email, async (client) => {
       const res = await client.query(
         `SELECT s.*,
@@ -126,6 +137,9 @@ export const sessionRoutes: FastifyPluginAsync = async (app) => {
 
   app.patch('/:id/faculty', { preHandler: requireStaff }, async (req, reply) => {
     const { id } = req.params as { id: string };
+    if (!isUuid(id)) {
+      return reply.status(400).send({ error: 'Invalid session ID format' });
+    }
     const parsed = UpdateFacultySchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid faculty array' });
@@ -156,6 +170,9 @@ export const sessionRoutes: FastifyPluginAsync = async (app) => {
 
   app.patch('/:id/schedule', { preHandler: requireStaff }, async (req, reply) => {
     const { id } = req.params as { id: string };
+    if (!isUuid(id)) {
+      return reply.status(400).send({ error: 'Invalid session ID format' });
+    }
     const parsed = RescheduleSchema.safeParse(req.body);
     if (!parsed.success) {
       return reply.status(400).send({ error: 'Invalid schedule dates' });
@@ -183,6 +200,9 @@ export const sessionRoutes: FastifyPluginAsync = async (app) => {
   // ---------------------------------------------------------------- Delete Session (Staff only)
   app.delete('/:id', { preHandler: requireStaff }, async (req, reply) => {
     const { id } = req.params as { id: string };
+    if (!isUuid(id)) {
+      return reply.status(400).send({ error: 'Invalid session ID format' });
+    }
 
     try {
       await withUser(req.user!.email, async (client) => {

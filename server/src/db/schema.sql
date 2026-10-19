@@ -338,3 +338,75 @@ CREATE OR REPLACE VIEW public.cohort_sizes AS
 SELECT batch_id, centre_id, course_id, count(*)::int AS students
   FROM public.student_roster
  GROUP BY batch_id, centre_id, course_id;
+
+-- ---------------------------------------------------------------- Row Level Security (S4)
+-- RLS enforces access boundaries at the PostgreSQL engine level, independent of the
+-- application layer. The application already calls can_manage / in_my_cohort on every
+-- query, but enabling RLS here ensures that no query -- even from a psql console or a
+-- future bug -- can bypass those checks.
+--
+-- app.current_user_email is set by withUser() in server/src/db/pool.ts before every query.
+-- The postgres superuser role bypasses RLS intentionally (migrations / backups).
+
+-- student_roster: Students see only their own row; staff see their scoped centre/course.
+ALTER TABLE public.student_roster ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS student_roster_select ON public.student_roster;
+CREATE POLICY student_roster_select ON public.student_roster FOR SELECT
+  USING (
+    email = my_email()                         -- own row
+    OR is_staff()                              -- staff see rows (further filtered by app)
+  );
+
+-- feedback_sessions: Students see sessions in their cohort; staff see their managed sessions.
+ALTER TABLE public.feedback_sessions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS feedback_sessions_select ON public.feedback_sessions;
+CREATE POLICY feedback_sessions_select ON public.feedback_sessions FOR SELECT
+  USING (
+    in_my_cohort(batch_id, centre_id, course_id)  -- student sees own cohort's sessions
+    OR can_manage(centre_id, course_id)            -- staff sees managed centre/course
+  );
+DROP POLICY IF EXISTS feedback_sessions_insert ON public.feedback_sessions;
+CREATE POLICY feedback_sessions_insert ON public.feedback_sessions FOR INSERT
+  WITH CHECK (can_manage(centre_id, course_id));
+DROP POLICY IF EXISTS feedback_sessions_update ON public.feedback_sessions;
+CREATE POLICY feedback_sessions_update ON public.feedback_sessions FOR UPDATE
+  USING (can_manage(centre_id, course_id));
+DROP POLICY IF EXISTS feedback_sessions_delete ON public.feedback_sessions;
+CREATE POLICY feedback_sessions_delete ON public.feedback_sessions FOR DELETE
+  USING (can_manage(centre_id, course_id));
+
+-- submissions: Students see only their own receipts; staff see their managed sessions.
+ALTER TABLE public.submissions ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS submissions_select ON public.submissions;
+CREATE POLICY submissions_select ON public.submissions FOR SELECT
+  USING (
+    email = my_email()
+    OR EXISTS (
+      SELECT 1 FROM public.feedback_sessions s
+       WHERE s.id = session_id AND can_manage(s.centre_id, s.course_id)
+    )
+  );
+DROP POLICY IF EXISTS submissions_insert ON public.submissions;
+CREATE POLICY submissions_insert ON public.submissions FOR INSERT
+  WITH CHECK (email = my_email());
+
+-- responses: Completely anonymous. Staff can SELECT for their sessions only;
+-- no individual identity is stored so there is nothing to filter on for students.
+ALTER TABLE public.responses ENABLE ROW LEVEL SECURITY;
+DROP POLICY IF EXISTS responses_select ON public.responses;
+CREATE POLICY responses_select ON public.responses FOR SELECT
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.feedback_sessions s
+       WHERE s.id = session_id AND can_manage(s.centre_id, s.course_id)
+    )
+  );
+DROP POLICY IF EXISTS responses_insert ON public.responses;
+CREATE POLICY responses_insert ON public.responses FOR INSERT
+  WITH CHECK (
+    EXISTS (
+      SELECT 1 FROM public.feedback_sessions s
+       WHERE s.id = session_id
+         AND in_my_cohort(s.batch_id, s.centre_id, s.course_id)
+    )
+  );

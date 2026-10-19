@@ -42,7 +42,7 @@ export default function SessionReport() {
         }),
       ]);
       const submitted = new Set(submissions.map((s) => s.email));
-      const answers = result as { status: 'open' | 'too_few' | 'ready'; answers: Answers[] };
+      const answers = result as unknown as { status: 'open' | 'too_few' | 'ready'; answers: Answers[] };
       return {
         session,
         questions: session.questions as Question[],
@@ -105,9 +105,25 @@ export default function SessionReport() {
   const batchLabel = session.batches?.label ?? '';
   const fileBase = `feedback_${courseCode}_${session.modules?.short_name || moduleName}_${centreName}_${batchLabel}`.replace(/[^\w-]+/g, '_');
 
+  const studentUrl = `${location.origin}${location.pathname}#/feedback/${id}`;
   const copyLink = async () => {
-    await navigator.clipboard.writeText(`${location.origin}${location.pathname}#/feedback/${id}`);
+    await navigator.clipboard.writeText(studentUrl);
     toast.success('Link copied. Share it with the batch.');
+  };
+
+  const shareLink = async () => {
+    const title = `C-DAC Feedback: ${moduleName}`;
+    const text = `Please submit your anonymous feedback for ${moduleName}:`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url: studentUrl });
+        return;
+      } catch (e: any) {
+        if (e.name === 'AbortError') return;
+      }
+    }
+    const waText = encodeURIComponent(`${text} ${studentUrl}`);
+    window.open(`https://api.whatsapp.com/send?text=${waText}`, '_blank');
   };
 
   const downloadPdf = async () => {
@@ -184,7 +200,10 @@ export default function SessionReport() {
         )}
         <div className="flex flex-wrap gap-2">
           <button className="btn btn-primary" onClick={copyLink}>
-            Copy student link
+            📋 Copy student link
+          </button>
+          <button className="btn bg-emerald-600 text-white hover:bg-emerald-700 font-medium" onClick={shareLink}>
+            📲 Share to WhatsApp
           </button>
           <button className="btn" onClick={downloadPdf} disabled={pdfBusy || report.total === 0}>
             {pdfBusy ? 'Preparing PDF…' : 'Download PDF'}

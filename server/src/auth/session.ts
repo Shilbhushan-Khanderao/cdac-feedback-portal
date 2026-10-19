@@ -57,3 +57,8 @@ export async function destroySession(sessionId: string, ipAddress?: string): Pro
     );
   }
 }
+
+export async function purgeExpiredSessions(): Promise<number> {
+  const res = await query('DELETE FROM public.user_sessions WHERE expires_at <= now()');
+  return res.rowCount ?? 0;
+}

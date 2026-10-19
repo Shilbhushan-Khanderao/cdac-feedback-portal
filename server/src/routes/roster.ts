@@ -8,7 +8,10 @@ export const rosterRoutes: FastifyPluginAsync = async (app) => {
 
   // ---------------------------------------------------------------- List Students
   app.get('/', async (req) => {
-    const q = req.query as { batch_id?: string; centre_id?: string; course_id?: string };
+    const q = req.query as { batch_id?: string; centre_id?: string; course_id?: string; limit?: string; offset?: string };
+    const limit = Math.min(Math.max(parseInt(q.limit || '200', 10) || 200, 1), 1000);
+    const offset = Math.max(parseInt(q.offset || '0', 10) || 0, 0);
+
     return withUser(req.user!.email, async (client) => {
       const conditions = ['public.can_manage(centre_id, course_id)'];
       const params: any[] = [];
@@ -26,11 +29,16 @@ export const rosterRoutes: FastifyPluginAsync = async (app) => {
         conditions.push(`course_id = $${params.length}`);
       }
 
+      const limitIdx = params.length + 1;
+      const offsetIdx = params.length + 2;
+      params.push(limit, offset);
+
       const sql = `
         SELECT email, prn, full_name, batch_id, centre_id, course_id
           FROM public.student_roster
          WHERE ${conditions.join(' AND ')}
          ORDER BY prn ASC, full_name ASC
+         LIMIT $${limitIdx} OFFSET $${offsetIdx}
       `;
       const res = await client.query(sql, params);
       return res.rows;

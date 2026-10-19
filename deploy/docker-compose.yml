@@ -67,7 +67,9 @@ services:
       PGUSER: ${POSTGRES_USER:-postgres}
       PGPASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_pwd}
       PGDATABASE: ${POSTGRES_DB:-cdac_feedback}
-      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:-cdac_secret_backup_aes256_key}
+      # S6: No fallback. Provide a strong random key (openssl rand -hex 32) in the
+      # deployment .env file. The container will fail to start without it.
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY must be set in .env}
     volumes:
       - ./backup:/scripts:ro
       - backups_data:/backups

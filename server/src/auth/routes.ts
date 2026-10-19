@@ -46,6 +46,18 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
     return reply.send({ ok: true });
   });
 
+  app.get('/logout', async (req, reply) => {
+    const rawCookie = req.cookies[COOKIE_NAME];
+    if (rawCookie) {
+      const unsigned = req.unsignCookie(rawCookie);
+      if (unsigned.valid && unsigned.value) {
+        await destroySession(unsigned.value, req.ip);
+      }
+    }
+    reply.clearCookie(COOKIE_NAME, { path: '/' });
+    return reply.redirect('/#/');
+  });
+
   // ---------------------------------------------------------------- Dev Login (Development Only)
   if (config.NODE_ENV !== 'production') {
     const DevLoginSchema = z.object({
@@ -175,9 +187,7 @@ export const authRoutes: FastifyPluginAsync = async (app) => {
 
       if (!role) {
         return reply.redirect(
-          `${config.APP_URL}?error_description=Your+email+(${encodeURIComponent(
-            email
-          )})+is+not+on+the+feedback+roster.`
+          `${config.APP_URL}?error_description=Your+email+is+not+on+the+feedback+roster.+Contact+your+course+coordinator.`
         );
       }
 

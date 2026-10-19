@@ -1,7 +1,122 @@
 /**
  * Native API Client for C-DAC Feedback Portal
- * Replaces direct supabase-js calls with hardened Fastify REST endpoints.
+ * Hardened REST client with comprehensive TypeScript domain contracts.
  */
+
+export interface User {
+  email: string;
+  role: 'student' | 'cc' | 'admin';
+  full_name: string;
+  prn?: string;
+  batch_id?: string;
+  centre_id?: string | null;
+  course_id?: string | null;
+}
+
+export interface Batch {
+  id: string;
+  label: string;
+  active: boolean;
+}
+
+export interface Centre {
+  id: string;
+  name: string;
+  kind: 'cdac' | 'atc';
+  parent_id?: string | null;
+}
+
+export interface Course {
+  id: string;
+  code: string;
+  name: string;
+  active: boolean;
+}
+
+export interface Module {
+  id: string;
+  course_id: string;
+  name: string;
+  short_name?: string | null;
+  sort_order: number;
+  active: boolean;
+}
+
+export interface Faculty {
+  id: string;
+  name: string;
+  centre_id?: string | null;
+  active: boolean;
+}
+
+export interface CohortSize {
+  batch_id: string;
+  centre_id: string;
+  course_id: string;
+  students: number;
+}
+
+export interface SessionListItem {
+  id: string;
+  batch_id: string;
+  centre_id: string;
+  course_id: string;
+  module_id: string;
+  faculty: string[];
+  questions?: unknown[];
+  question_count?: number;
+  opens_at: string;
+  closes_at: string;
+  created_by?: string;
+  created_at?: string;
+  modules?: { name: string; short_name?: string | null };
+  batches?: { label: string };
+  centres?: { name: string };
+  courses?: { code: string };
+  submissions?: Array<{ session_id?: string; email?: string }>;
+}
+
+export interface CreateSessionPayload {
+  batch_id: string;
+  centre_id: string;
+  course_id: string;
+  module_id: string;
+  faculty: string[];
+  opens_at: string;
+  closes_at: string;
+}
+
+export interface DashboardReportRow {
+  id: string;
+  batch_id?: string;
+  centre_id?: string;
+  course_id?: string;
+  opens_at: string;
+  closes_at: string;
+  faculty: string[];
+  batch: string;
+  centre: string;
+  course: string;
+  module: string;
+  students: number;
+  submitted: number;
+  ratings: Record<string, number> | null;
+}
+
+export interface StudentRosterRow {
+  email: string;
+  prn: string;
+  full_name: string;
+  batch_id: string;
+  centre_id: string;
+  course_id: string;
+}
+
+export interface SessionReportResult {
+  status: 'open' | 'too_few' | 'ready';
+  total: number;
+  answers: Record<string, string>[];
+}
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
@@ -32,42 +147,45 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
 export const api = {
   auth: {
-    whoami: () => request<{ user: any | null }>('/auth/whoami'),
+    whoami: () => request<{ user: User | null }>('/auth/whoami'),
     logout: () => request<{ ok: boolean }>('/auth/logout', { method: 'POST' }),
     devLogin: (email: string) =>
-      request<{ ok: boolean; user: any }>('/auth/dev-login', {
+      request<{ ok: boolean; user: User }>('/auth/dev-login', {
         method: 'POST',
         body: JSON.stringify({ email }),
       }),
   },
   reference: {
-    batches: () => request<any[]>('/api/reference/batches'),
-    centres: () => request<any[]>('/api/reference/centres'),
-    courses: () => request<any[]>('/api/reference/courses'),
-    modules: () => request<any[]>('/api/reference/modules'),
-    faculty: () => request<any[]>('/api/reference/faculty'),
+    batches: () => request<Batch[]>('/api/reference/batches'),
+    centres: () => request<Centre[]>('/api/reference/centres'),
+    courses: () => request<Course[]>('/api/reference/courses'),
+    modules: () => request<Module[]>('/api/reference/modules'),
+    faculty: () => request<Faculty[]>('/api/reference/faculty'),
     addFaculty: (name: string, centre_id?: string | null) =>
-      request<any>('/api/reference/faculty', {
+      request<Faculty>('/api/reference/faculty', {
         method: 'POST',
         body: JSON.stringify({ name, centre_id }),
       }),
-    cohortSizes: () => request<any[]>('/api/reference/cohort-sizes'),
+    cohortSizes: () => request<CohortSize[]>('/api/reference/cohort-sizes'),
   },
   sessions: {
-    list: () => request<any[]>('/api/sessions'),
-    get: (id: string) => request<any>(`/api/sessions/${id}`),
-    create: (data: any) =>
-      request<any>('/api/sessions', {
+    list: (params?: { limit?: number; offset?: number }) => {
+      const q = params ? '?' + new URLSearchParams(params as Record<string, any>).toString() : '';
+      return request<SessionListItem[]>(`/api/sessions${q}`);
+    },
+    get: (id: string) => request<SessionListItem>(`/api/sessions/${id}`),
+    create: (data: CreateSessionPayload | CreateSessionPayload[]) =>
+      request<SessionListItem | SessionListItem[]>('/api/sessions', {
         method: 'POST',
         body: JSON.stringify(data),
       }),
     updateFaculty: (id: string, faculty: string[]) =>
-      request<any>(`/api/sessions/${id}/faculty`, {
+      request<SessionListItem>(`/api/sessions/${id}/faculty`, {
         method: 'PATCH',
         body: JSON.stringify({ faculty }),
       }),
     reschedule: (id: string, opens_at: string, closes_at: string) =>
-      request<any>(`/api/sessions/${id}/schedule`, {
+      request<SessionListItem>(`/api/sessions/${id}/schedule`, {
         method: 'PATCH',
         body: JSON.stringify({ opens_at, closes_at }),
       }),
@@ -86,32 +204,32 @@ export const api = {
       }),
   },
   reports: {
-    dashboard: () => request<any[]>('/api/reports/dashboard'),
-    get: (id: string) => request<any>(`/api/reports/${id}`),
+    dashboard: () => request<DashboardReportRow[]>('/api/reports/dashboard'),
+    get: (id: string) => request<SessionReportResult>(`/api/reports/${id}`),
   },
   roster: {
-    list: (params?: { batch_id?: string; centre_id?: string; course_id?: string }) => {
-      const q = params ? '?' + new URLSearchParams(params as Record<string, string>).toString() : '';
-      return request<any[]>(`/api/roster${q}`);
+    list: (params?: { batch_id?: string; centre_id?: string; course_id?: string; limit?: number; offset?: number }) => {
+      const q = params ? '?' + new URLSearchParams(params as Record<string, any>).toString() : '';
+      return request<StudentRosterRow[]>(`/api/roster${q}`);
     },
-    upsert: (students: any[]) =>
+    upsert: (students: Array<{ email: string; prn: string; full_name: string; batch_id: string; centre_id: string; course_id: string }>) =>
       request<{ ok: boolean; count: number }>('/api/roster/upsert', {
         method: 'POST',
         body: JSON.stringify({ students }),
       }),
   },
   tables: {
-    list: (table: string, params?: Record<string, string>) => {
+    list: <T = Record<string, unknown>>(table: string, params?: Record<string, string>) => {
       const q = params ? '?' + new URLSearchParams(params).toString() : '';
-      return request<any[]>(`/api/reference/tables/${table}${q}`);
+      return request<T[]>(`/api/reference/tables/${table}${q}`);
     },
-    create: (table: string, data: any) =>
-      request<any>(`/api/reference/tables/${table}`, {
+    create: <T = Record<string, unknown>>(table: string, data: Record<string, unknown>) =>
+      request<T>(`/api/reference/tables/${table}`, {
         method: 'POST',
         body: JSON.stringify(data),
       }),
-    update: (table: string, id: string, data: any, pk = 'id') =>
-      request<any>(`/api/reference/tables/${table}/${encodeURIComponent(id)}?pk=${pk}`, {
+    update: <T = Record<string, unknown>>(table: string, id: string, data: Record<string, unknown>, pk = 'id') =>
+      request<T>(`/api/reference/tables/${table}/${encodeURIComponent(id)}?pk=${pk}`, {
         method: 'PUT',
         body: JSON.stringify(data),
       }),

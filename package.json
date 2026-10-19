@@ -3,22 +3,24 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
+  "workspaces": [
+    "server"
+  ],
   "description": "C-DAC module feedback portal: students submit, course coordinators schedule and report",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "test": "vitest run",
-    "test:db": "supabase db reset && supabase test db",
-    "types": "supabase gen types typescript --local > src/lib/database.types.ts",
     "server:dev": "npm --prefix server run dev",
     "server:build": "npm --prefix server run build",
     "server:test": "npm --prefix server test",
+    "db:start": "\"C:\\Program Files\\PostgreSQL\\17\\bin\\pg_ctl.exe\" -D \".dev_db\" -o \"-p 5433\" -l \".dev_db/server.log\" start",
+    "db:stop": "\"C:\\Program Files\\PostgreSQL\\17\\bin\\pg_ctl.exe\" -D \".dev_db\" stop",
     "test:load": "node server/node_modules/tsx/dist/cli.mjs tests/load/simulate-700-students.ts"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.9.0",
-    "@supabase/supabase-js": "^2.117.2",
     "@tanstack/react-query": "^5.104.0",
     "compromise": "^14.17.0",
     "html-to-image": "^1.11.13",
@@ -38,7 +40,6 @@
     "@types/react-dom": "^19.3.0",
     "@types/sentiment": "^5.0.4",
     "@vitejs/plugin-react": "^6.0.1",
-    "supabase": "^2.119.0",
     "tailwindcss": "^4.3.3",
     "typescript": "~5.9.3",
     "vite": "^8.3.1",

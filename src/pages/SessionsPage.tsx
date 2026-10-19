@@ -1,18 +1,17 @@
-import { useState, type FormEvent } from 'react';
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
+import { useState } from 'react';
+import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
-import { useMe } from '../auth';
 import { api } from '../lib/api';
-import { fmt, sessionStatus, STATUS_STYLE, toLocalInput } from '../lib/format';
-import { cohortKey, useBatches, useCohortSizes, useCourses, useModules } from '../lib/reference';
-import { CohortPicker, cohortReady, emptyCohort, type Cohort } from './CohortPicker';
-import { FacultyPicker } from './FacultyPicker';
+import { fmt, sessionStatus, STATUS_STYLE } from '../lib/format';
+import { cohortKey, useBatches, useCohortSizes, useCourses } from '../lib/reference';
+import { CreateSessionForm } from './sessions/CreateSessionForm';
 
 export function SessionsPage() {
   const [batchFilter, setBatchFilter] = useState('');
   const [courseFilter, setCourseFilter] = useState('');
   const [creating, setCreating] = useState(false);
+  const [createdSession, setCreatedSession] = useState<{ id: string; moduleName?: string } | null>(null);
   const batches = useBatches();
   const courses = useCourses();
   const sizes = useCohortSizes();
@@ -25,10 +24,41 @@ export function SessionsPage() {
     (s) => (!batchFilter || s.batch_id === batchFilter) && (!courseFilter || s.course_id === courseFilter),
   );
 
+  // Attention banner: open sessions with < 50% response rate
+  const attention = rows.filter((s) => {
+    const status = sessionStatus(s);
+    const size = sizes.data?.get(cohortKey(s)) ?? 0;
+    const subsCount = s.submissions ? s.submissions.length : 0;
+    return status === 'open' && size > 0 && subsCount / size < 0.5;
+  });
+
+  const studentLink = createdSession ? `${location.origin}${location.pathname}#/feedback/${createdSession.id}` : '';
+
+  const copyCreatedLink = async () => {
+    if (!studentLink) return;
+    await navigator.clipboard.writeText(studentLink);
+    toast.success('Feedback link copied to clipboard!');
+  };
+
+  const shareCreatedLink = async () => {
+    if (!studentLink) return;
+    const title = `C-DAC Feedback: ${createdSession?.moduleName ?? 'Module'}`;
+    const text = `Please submit your anonymous feedback for ${createdSession?.moduleName ?? 'the module'}:`;
+    if (navigator.share) {
+      try {
+        await navigator.share({ title, text, url: studentLink });
+        return;
+      } catch (e: any) {
+        if (e.name === 'AbortError') return;
+      }
+    }
+    const waText = encodeURIComponent(`${text} ${studentLink}`);
+    window.open(`https://api.whatsapp.com/send?text=${waText}`, '_blank');
+  };
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <h1 className="mr-auto text-lg font-semibold">Feedback sessions</h1>
         <select className="input w-auto" aria-label="Filter by batch" value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)}>
           <option value="">All batches</option>
           {batches.data?.map((b) => (
@@ -46,11 +76,81 @@ export function SessionsPage() {
           ))}
         </select>
         <button className="btn btn-primary" onClick={() => setCreating((v) => !v)}>
-          {creating ? 'Cancel' : 'New session'}
+          {creating ? 'Cancel' : '+ New session'}
         </button>
       </div>
 
-      {creating && <NewSession onDone={() => setCreating(false)} />}
+      {/* Immediate Link Card on Creation */}
+      {createdSession && (
+        <div className="card border-2 border-emerald-500 bg-emerald-50/50 p-4 space-y-3">
+          <div className="flex items-start justify-between">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2 font-bold text-stone-900">
+                <span className="text-xl">🎉</span>
+                <span>Session Created: {createdSession.moduleName ?? 'Module'}</span>
+              </div>
+              <p className="text-xs text-stone-600">
+                Share this direct anonymous link with your students on WhatsApp or Slack:
+              </p>
+            </div>
+            <button onClick={() => setCreatedSession(null)} className="text-stone-400 hover:text-stone-600 font-bold p-1">
+              ✕
+            </button>
+          </div>
+          <div className="flex flex-col sm:flex-row items-center gap-2">
+            <input
+              readOnly
+              className="input font-mono text-xs select-all bg-white flex-1"
+              value={studentLink}
+            />
+            <div className="flex gap-2 w-full sm:w-auto">
+              <button className="btn btn-primary text-xs py-2 px-3 whitespace-nowrap" onClick={copyCreatedLink}>
+                📋 Copy Link
+              </button>
+              <button className="btn text-xs py-2 px-3 whitespace-nowrap bg-emerald-600 text-white hover:bg-emerald-700" onClick={shareCreatedLink}>
+                📲 Share to WhatsApp
+              </button>
+            </div>
+          </div>
+          <div className="flex justify-between items-center pt-1 border-t border-emerald-200/50 text-xs">
+            <Link to={`/sessions/${createdSession.id}`} className="text-brand-700 font-semibold hover:underline">
+              View Session Page & Roster →
+            </Link>
+            <button onClick={() => setCreatedSession(null)} className="text-stone-500 hover:text-stone-700">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Attention Banner */}
+      {attention.length > 0 && (
+        <div className="rounded-lg border border-amber-300 bg-amber-50/70 p-3 text-xs text-amber-900 space-y-1.5">
+          <div className="font-semibold flex items-center gap-1.5 text-sm">
+            <span>⚠️</span> {attention.length} open session{attention.length > 1 ? 's need' : ' needs'} more responses (&lt;50% turn out)
+          </div>
+          <div className="flex flex-wrap gap-2 pt-1">
+            {attention.map((s) => (
+              <Link
+                key={s.id}
+                to={`/sessions/${s.id}`}
+                className="inline-flex items-center gap-1 rounded bg-white px-2 py-1 border border-amber-200 font-medium text-amber-900 hover:bg-amber-100 transition"
+              >
+                {s.modules?.name}: {s.submissions?.length ?? 0} / {sizes.data?.get(cohortKey(s)) ?? 0} submitted →
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {creating && (
+        <CreateSessionForm
+          onDone={(created) => {
+            setCreating(false);
+            if (created) setCreatedSession(created);
+          }}
+        />
+      )}
 
       {sessions.isLoading && <p className="muted">Loading…</p>}
       {sessions.error && <p className="text-red-600">{sessions.error.message}</p>}
@@ -60,117 +160,32 @@ export function SessionsPage() {
         {rows.map((s) => {
           const status = sessionStatus(s);
           const size = sizes.data?.get(cohortKey(s)) ?? 0;
-          const done = s.submissions.length;
+          const done = s.submissions ? s.submissions.length : 0;
           const pct = size ? Math.round((100 * done) / size) : 0;
           return (
             <Link key={s.id} to={`/sessions/${s.id}`} className="card block hover:border-brand-400">
               <div className="flex flex-wrap items-center gap-2">
                 <span className="font-medium">{s.modules?.name}</span>
                 <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLE[status]}`}>{status}</span>
-                <span className="ml-auto text-sm">
+                <span className="ml-auto text-sm font-medium">
                   {done} / {size} submitted
                 </span>
               </div>
-              <div className="muted">
+              <div className="muted text-xs sm:text-sm">
                 {s.centres?.name} · {s.courses?.code} · {s.batches?.label} · {fmt(s.opens_at)} – {fmt(s.closes_at)}
               </div>
-              <div className="mt-2 h-1.5 rounded bg-stone-100">
-                <div className="h-1.5 rounded bg-brand-500" style={{ width: `${pct}%` }} />
+              <div className="mt-2 h-1.5 rounded-full bg-stone-100 overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${
+                    pct >= 80 ? 'bg-emerald-500' : pct >= 40 ? 'bg-brand-500' : 'bg-amber-500'
+                  }`}
+                  style={{ width: `${pct}%` }}
+                />
               </div>
             </Link>
           );
         })}
       </div>
     </div>
-  );
-}
-
-function NewSession({ onDone }: { onDone: () => void }) {
-  const me = useMe();
-  const queryClient = useQueryClient();
-  const modules = useModules();
-  const [cohort, setCohort] = useState<Cohort>(() => emptyCohort(me));
-  const [faculty, setFaculty] = useState<string[]>([]);
-  const single = cohort.centre_ids.length === 1;
-
-  const create = useMutation({
-    mutationFn: (form: FormData) =>
-      api.sessions.create(
-        // One session per centre: each centre keeps its own faculty, schedule and report.
-        cohort.centre_ids.map((centre_id) => ({
-          batch_id: cohort.batch_id,
-          centre_id,
-          course_id: cohort.course_id,
-          module_id: form.get('module') as string,
-          faculty: single ? faculty : [],
-          opens_at: new Date(form.get('opens') as string).toISOString(),
-          closes_at: new Date(form.get('closes') as string).toISOString(),
-        })),
-      ),
-    onSuccess: () => {
-      toast.success(single ? 'Session created. Open it to copy the link for students.' : `${cohort.centre_ids.length} sessions created.`);
-      void queryClient.invalidateQueries({ queryKey: ['sessions'] });
-      onDone();
-    },
-    onError: (e) => toast.error(e.message),
-  });
-
-  const onSubmit = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    if (!cohortReady(cohort)) return toast.error('Pick batch, centre and course');
-    create.mutate(new FormData(e.currentTarget));
-  };
-
-  return (
-    <form onSubmit={onSubmit} className="card space-y-4">
-      <CohortPicker
-        value={cohort}
-        onChange={(c) => {
-          if (c.centre_ids.join() !== cohort.centre_ids.join()) setFaculty([]); // faculty belong to a centre
-          setCohort(c);
-        }}
-        multiCentre
-      />
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div>
-          <label className="label" htmlFor="module">Module</label>
-          <select id="module" name="module" className="input" required disabled={!cohort.course_id}>
-            <option value="">{cohort.course_id ? 'Select module' : 'Pick a course first'}</option>
-            {modules.data
-              ?.filter((m) => m.course_id === cohort.course_id)
-              .map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-          </select>
-        </div>
-        <div>
-          <label className="label" htmlFor="opens">Opens</label>
-          <input id="opens" name="opens" type="datetime-local" className="input" required defaultValue={toLocalInput(new Date())} />
-        </div>
-        <div>
-          <label className="label" htmlFor="closes">Closes</label>
-          <input
-            id="closes"
-            name="closes"
-            type="datetime-local"
-            className="input"
-            required
-            defaultValue={toLocalInput(new Date(Date.now() + 3 * 86400000))}
-          />
-        </div>
-      </div>
-      {single ? (
-        <FacultyPicker centreId={cohort.centre_ids[0]} value={faculty} onChange={setFaculty} />
-      ) : (
-        cohort.centre_ids.length > 1 && (
-          <p className="muted">One session per centre will be created. Each centre’s CC adds its faculty on the session page.</p>
-        )
-      )}
-      <button className="btn btn-primary w-full" disabled={create.isPending}>
-        Create session
-      </button>
-    </form>
   );
 }
