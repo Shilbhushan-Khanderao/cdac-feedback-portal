@@ -82,11 +82,13 @@ export function ManagePage() {
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-semibold">{me.role === 'admin' ? 'System Setup' : 'Course & Faculty Setup'}</h1>
-      <div className="flex flex-wrap gap-1" role="tablist">
+      <div className="flex flex-wrap gap-1" role="tablist" aria-label="Setup sections">
         {tabs.map((t) => (
           <button
             key={t.id}
+            id={`tab-${t.id}`}
             role="tab"
+            aria-controls="tabpanel"
             aria-selected={t.id === tab}
             className={`btn px-3 py-1.5 ${t.id === tab ? 'btn-primary' : ''}`}
             onClick={() => setTab(t.id)}
@@ -95,6 +97,7 @@ export function ManagePage() {
           </button>
         ))}
       </div>
+      <div role="tabpanel" id="tabpanel" aria-labelledby={`tab-${current.id}`} className="space-y-4">
       {current.note && <p className="muted">{current.note}</p>}
 
       {tab === 'modules' ? (
@@ -124,6 +127,7 @@ export function ManagePage() {
       ) : (
         <TableEditor key={tab} table={tab} columns={columns[tab]} order={order[tab]} pk={tab === 'staff_roster' ? 'email' : 'id'} />
       )}
+      </div>
     </div>
   );
 }

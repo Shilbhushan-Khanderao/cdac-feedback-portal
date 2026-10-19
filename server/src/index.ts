@@ -15,6 +15,8 @@ import { tablesRoutes } from './routes/tables.js';
 import { purgeExpiredSessions } from './auth/session.js';
 import { AppError } from './lib/errors.js';
 
+const SESSION_COOKIE = 'cdac_session';
+
 export function buildApp() {
   const app = Fastify({
     logger: {
@@ -22,13 +24,17 @@ export function buildApp() {
       // Redact sensitive headers and bodies
       redact: ['req.headers.authorization', 'req.headers.cookie'],
     },
-    trustProxy: true,
-    // S1: Enforce 50 KB body limit at the API server level (Nginx also enforces this,
-    // but defence-in-depth ensures the limit holds even if Nginx is misconfigured).
+    // Trust X-Forwarded-For only from the nginx hop (loopback / private docker network),
+    // never from arbitrary peers. nginx sets XFF to $remote_addr, so req.ip is the real client.
+    trustProxy: config.TRUST_PROXY
+      ? config.TRUST_PROXY.split(',').map((s) => s.trim()).filter(Boolean)
+      : ['loopback', 'uniquelocal'],
+    // 50 KB default; the roster upload route raises its own limit.
     bodyLimit: 51200,
   });
 
   // ---------------------------------------------------------------- Error Handler
+  // Never echo raw error messages for 5xx or unknown errors; routes map DB errors via mapDbError().
   app.setErrorHandler((err, req, reply) => {
     req.log.warn({ err }, 'Request failed with error');
     if (err instanceof AppError) {
@@ -38,6 +44,7 @@ export function buildApp() {
     if (statusCode >= 500) {
       return reply.status(statusCode).send({ error: 'Internal Server Error' });
     }
+    // Fastify's own 4xx (malformed JSON, payload too large, ...) have safe messages.
     return reply.status(statusCode).send({ error: (err as any).message || 'Request failed' });
   });
 
@@ -70,14 +77,13 @@ export function buildApp() {
   });
 
   // ---------------------------------------------------------------- CORS
+  const originAllowed = (origin: string) =>
+    origin === config.CORS_ORIGIN || (config.NODE_ENV !== 'production' && origin.startsWith('http://localhost:'));
+
   app.register(cors, {
     origin: (origin, cb) => {
-      // Allow requests with no origin (server-to-server, health probes) or matching
-      // the configured frontend origin.
-      // S3: localhost bypass is restricted to non-production to prevent CORS abuse
-      // from any localhost-running page against the live server.
-      const allowLocalhost = config.NODE_ENV !== 'production';
-      if (!origin || origin === config.CORS_ORIGIN || (allowLocalhost && origin.startsWith('http://localhost:'))) {
+      // No Origin (server-to-server, health probes) is fine; otherwise must match.
+      if (!origin || originAllowed(origin)) {
         cb(null, true);
         return;
       }
@@ -86,9 +92,32 @@ export function buildApp() {
     credentials: true,
   });
 
+  // CSRF defence in depth (on top of SameSite=Lax): state-changing requests that carry an
+  // Origin header must come from the configured frontend.
+  app.addHook('onRequest', async (req, reply) => {
+    if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method)) {
+      const origin = req.headers.origin;
+      if (origin && !originAllowed(origin)) {
+        return reply.status(403).send({ error: 'Cross-origin request blocked' });
+      }
+    }
+  });
+
   // ---------------------------------------------------------------- Rate Limiting (DoS Defense)
+  // /api buckets per signed session cookie (a campus NAT shares one IP across hundreds of
+  // students); anything without a validly signed cookie falls back to the client IP.
+  // Forged cookies cannot mint new buckets because the signature is verified first.
+  // /auth gets its own per-IP bucket with a bigger burst for login rushes.
+  const isAuth = (url: string) => url.startsWith('/auth');
   app.register(rateLimit, {
-    max: 120,
+    allowList: (req) => req.url === '/healthz',
+    keyGenerator: (req) => {
+      if (isAuth(req.url)) return `auth:${req.ip}`;
+      const raw = req.cookies?.[SESSION_COOKIE];
+      const un = raw ? req.unsignCookie(raw) : null;
+      return un?.valid && un.value ? `s:${un.value.slice(0, 16)}` : `ip:${req.ip}`;
+    },
+    max: (req, key) => (key.startsWith('auth:') ? 600 : key.startsWith('s:') ? 240 : 120),
     timeWindow: '1 minute',
   });
 
@@ -138,6 +167,6 @@ async function start() {
   }
 }
 
-if (process.argv[1] && process.argv[1].endsWith('index.ts') || process.argv[1]?.endsWith('index.js')) {
+if ((process.argv[1] && process.argv[1].endsWith('index.ts')) || process.argv[1]?.endsWith('index.js')) {
   void start();
 }

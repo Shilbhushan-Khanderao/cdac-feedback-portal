@@ -1,52 +1,36 @@
 #!/bin/sh
-set -e
+# Restore drill: decrypt a backup into a scratch DB, list row counts of ALL tables, drop it.
+# Usage (from repo root):
+#   docker compose --env-file deploy/.env -f deploy/docker-compose.yml exec backup \
+#     /scripts/restore-test.sh /backups/<file>.sql.gz.enc
+set -eu
+set -o pipefail
+FILE="${1:?usage: restore-test.sh <backup.sql.gz.enc> [scratch_db]}"
+SCRATCH="${2:-cdac_restore_drill}"
+: "${BACKUP_ENCRYPTION_KEY:?required}"
+export BACKUP_ENCRYPTION_KEY
+TMP=$(mktemp)
+COUNTS=$(mktemp)
+cleanup() {
+  rm -f "$TMP" "$COUNTS"
+  dropdb -h "${PGHOST:-db}" -U "$PGUSER" --if-exists "$SCRATCH" >/dev/null 2>&1 || true
+}
+trap cleanup EXIT
 
-# ============================================================================
-# C-DAC Feedback Portal Backup Restore Drill Script
-# Validates backup integrity and recovery readiness for VAPT / CERT-In
-# ============================================================================
+openssl enc -d -aes-256-cbc -pbkdf2 -pass env:BACKUP_ENCRYPTION_KEY -in "$FILE" | gunzip > "$TMP"
+dropdb -h "${PGHOST:-db}" -U "${PGUSER:?}" --if-exists "$SCRATCH"
+createdb -h "${PGHOST:-db}" -U "$PGUSER" "$SCRATCH"
+psql -h "${PGHOST:-db}" -U "$PGUSER" -d "$SCRATCH" -v ON_ERROR_STOP=1 -q -f "$TMP" >/dev/null
 
-BACKUP_FILE="$1"
-TARGET_DB="${2:-cdac_feedback_restore_test}"
+# Count every user table (schema-qualified), not a hardcoded subset.
+psql -h "${PGHOST:-db}" -U "$PGUSER" -d "$SCRATCH" -v ON_ERROR_STOP=1 -At -c "
+  SELECT table_schema || '.' || table_name || '=' ||
+         (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I', table_schema, table_name), false, true, '')))[1]::text
+  FROM information_schema.tables
+  WHERE table_type = 'BASE TABLE' AND table_schema NOT IN ('pg_catalog','information_schema')
+  ORDER BY 1" | tee "$COUNTS"
 
-if [ -z "${BACKUP_FILE}" ]; then
-  echo "Usage: $0 <path_to_backup_file> [target_database]"
-  exit 1
-fi
-
-echo "[restore-drill] Starting recovery validation for: ${BACKUP_FILE}"
-TEMP_SQL="/tmp/restore_drill.sql"
-
-if echo "${BACKUP_FILE}" | grep -q "\.enc$"; then
-  if [ -z "${BACKUP_ENCRYPTION_KEY}" ]; then
-    echo "ERROR: BACKUP_ENCRYPTION_KEY must be set to decrypt ${BACKUP_FILE}"
-    exit 1
-  fi
-  echo "[restore-drill] Decrypting and uncompressing..."
-  openssl enc -d -aes-256-cbc -pbkdf2 -in "${BACKUP_FILE}" -k "${BACKUP_ENCRYPTION_KEY}" | gunzip > "${TEMP_SQL}"
-else
-  echo "[restore-drill] Uncompressing..."
-  gunzip -c "${BACKUP_FILE}" > "${TEMP_SQL}"
-fi
-
-echo "[restore-drill] Creating temporary database: ${TARGET_DB}"
-dropdb -h "${PGHOST:-db}" -U "${PGUSER:-postgres}" --if-exists "${TARGET_DB}"
-createdb -h "${PGHOST:-db}" -U "${PGUSER:-postgres}" "${TARGET_DB}"
-
-echo "[restore-drill] Restoring SQL dump into ${TARGET_DB}..."
-psql -h "${PGHOST:-db}" -U "${PGUSER:-postgres}" -d "${TARGET_DB}" -f "${TEMP_SQL}" > /dev/null
-
-echo "[restore-drill] Verifying restored row counts..."
-psql -h "${PGHOST:-db}" -U "${PGUSER:-postgres}" -d "${TARGET_DB}" -c "
-  SELECT 'centres' AS table_name, count(*) FROM public.centres
-  UNION ALL SELECT 'courses', count(*) FROM public.courses
-  UNION ALL SELECT 'modules', count(*) FROM public.modules
-  UNION ALL SELECT 'student_roster', count(*) FROM public.student_roster
-  UNION ALL SELECT 'feedback_sessions', count(*) FROM public.feedback_sessions;
-"
-
-echo "[restore-drill] Cleaning up temporary test database..."
-dropdb -h "${PGHOST:-db}" -U "${PGUSER:-postgres}" "${TARGET_DB}"
-rm -f "${TEMP_SQL}"
-
-echo "[restore-drill] PASS: Restore drill successful. Database is fully recoverable."
+for t in responses submissions audit_logs; do
+  grep -q "\.$t=" "$COUNTS" || { echo "[restore-drill] FAIL: table $t missing from restore"; exit 1; }
+done
+echo "[restore-drill] PASS (compare counts with live DB; they differ only by rows written since the backup)"

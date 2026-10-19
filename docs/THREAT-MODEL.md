@@ -23,7 +23,7 @@
 ### 2.1 Spoofing (Identity)
 - **Threat**: Attacker attempts to forge student identity, impersonate a Course Coordinator, or submit feedback on behalf of another student.
 - **Mitigations**:
-  - Server-side OAuth2 PKCE flow (Google / C-DAC SSO).
+  - Server-side OAuth2 authorization-code flow (state/PKCE: target, being added) (Google / C-DAC SSO).
   - Signed, `HttpOnly`, `Secure`, `SameSite=Lax` session cookies with cryptographic session IDs stored in PostgreSQL.
   - Pre-callback roster check: non-rostered emails are rejected with 403 Forbidden before session creation.
   - Active session validation on every protected route.

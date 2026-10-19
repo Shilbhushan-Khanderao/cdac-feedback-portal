@@ -2,54 +2,48 @@ import type { FastifyPluginAsync } from 'fastify';
 import { z } from 'zod';
 import { requireStaff } from '../auth/guard.js';
 import { withUser } from '../db/pool.js';
+import { audit } from '../lib/audit.js';
+import { badRequest, forbidden, mapDbError } from '../lib/errors.js';
+import { isUuid } from '../lib/validate.js';
 
 export const rosterRoutes: FastifyPluginAsync = async (app) => {
   app.addHook('preHandler', requireStaff);
 
   // ---------------------------------------------------------------- List Students
   app.get('/', async (req) => {
-    const q = req.query as { batch_id?: string; centre_id?: string; course_id?: string; limit?: string; offset?: string };
-    const limit = Math.min(Math.max(parseInt(q.limit || '200', 10) || 200, 1), 1000);
-    const offset = Math.max(parseInt(q.offset || '0', 10) || 0, 0);
+    const q = req.query as Record<string, unknown>;
+    const limit = Math.min(Math.max(parseInt(String(q.limit ?? '200'), 10) || 200, 1), 1000);
+    const offset = Math.max(parseInt(String(q.offset ?? '0'), 10) || 0, 0);
+
+    const conditions = ['public.can_manage(centre_id, course_id)'];
+    const params: unknown[] = [];
+    for (const col of ['batch_id', 'centre_id', 'course_id'] as const) {
+      const v = q[col];
+      if (v === undefined || v === '') continue;
+      if (!isUuid(v)) throw badRequest(`Invalid ${col}`);
+      params.push(v);
+      conditions.push(`${col} = $${params.length}`);
+    }
+    params.push(limit, offset);
 
     return withUser(req.user!.email, async (client) => {
-      const conditions = ['public.can_manage(centre_id, course_id)'];
-      const params: any[] = [];
-
-      if (q.batch_id) {
-        params.push(q.batch_id);
-        conditions.push(`batch_id = $${params.length}`);
-      }
-      if (q.centre_id) {
-        params.push(q.centre_id);
-        conditions.push(`centre_id = $${params.length}`);
-      }
-      if (q.course_id) {
-        params.push(q.course_id);
-        conditions.push(`course_id = $${params.length}`);
-      }
-
-      const limitIdx = params.length + 1;
-      const offsetIdx = params.length + 2;
-      params.push(limit, offset);
-
-      const sql = `
-        SELECT email, prn, full_name, batch_id, centre_id, course_id
-          FROM public.student_roster
-         WHERE ${conditions.join(' AND ')}
-         ORDER BY prn ASC, full_name ASC
-         LIMIT $${limitIdx} OFFSET $${offsetIdx}
-      `;
-      const res = await client.query(sql, params);
+      const res = await client.query(
+        `SELECT email, prn, full_name, batch_id, centre_id, course_id
+           FROM public.student_roster
+          WHERE ${conditions.join(' AND ')}
+          ORDER BY prn ASC, full_name ASC
+          LIMIT $${params.length - 1} OFFSET $${params.length}`,
+        params
+      );
       return res.rows;
     });
   });
 
   // ---------------------------------------------------------------- Upsert Students (CSV Upload)
   const StudentSchema = z.object({
-    email: z.string().email(),
-    prn: z.string().trim().min(1),
-    full_name: z.string().trim().min(1),
+    email: z.string().trim().email().max(254),
+    prn: z.string().trim().min(1).max(64),
+    full_name: z.string().trim().min(1).max(255),
     batch_id: z.string().uuid(),
     centre_id: z.string().uuid(),
     course_id: z.string().uuid(),
@@ -59,27 +53,38 @@ export const rosterRoutes: FastifyPluginAsync = async (app) => {
     students: z.array(StudentSchema).min(1).max(2000),
   });
 
-  app.post('/upsert', async (req, reply) => {
+  // 2000 rows is ~0.5 MB of JSON; only this route gets the bigger limit.
+  app.post('/upsert', { bodyLimit: 1024 * 1024 }, async (req) => {
     const parsed = RosterUpsertSchema.safeParse(req.body);
-    if (!parsed.success) {
-      return reply.status(400).send({ error: parsed.error.issues[0]?.message ?? 'Invalid roster format' });
-    }
+    if (!parsed.success) throw badRequest(parsed.error.issues[0]?.message ?? 'Invalid roster format');
 
     const { students } = parsed.data;
 
     try {
       const count = await withUser(req.user!.email, async (client) => {
+        // Destination check, once per distinct cohort.
+        const pairs = new Map<string, [string, string]>();
+        for (const s of students) pairs.set(`${s.centre_id}|${s.course_id}`, [s.centre_id, s.course_id]);
+        for (const [centre, course] of pairs.values()) {
+          const r = await client.query('SELECT public.can_manage($1, $2) AS allowed', [centre, course]);
+          if (!r.rows[0]?.allowed) throw forbidden('You cannot add students to this centre or course');
+        }
+
+        // Source check: an email already rostered elsewhere belongs to someone else's cohort.
+        // RLS hides rows outside our scope, so "not visible but exists" means foreign. The
+        // ON CONFLICT ... DO UPDATE below also fails closed via the UPDATE policy USING clause.
+        const emails = students.map((s) => s.email.toLowerCase().trim());
+        const foreign = await client.query(
+          `SELECT count(*)::int AS n
+             FROM unnest($1::text[]) e(email)
+            WHERE public.roster_email_taken(e.email::citext)
+              AND NOT EXISTS (SELECT 1 FROM public.student_roster r WHERE r.email = e.email::citext)`,
+          [emails]
+        );
+        if (foreign.rows[0].n > 0) throw forbidden('Some emails already belong to another centre or course');
+
         let inserted = 0;
         for (const s of students) {
-          // Verify coordinator can manage this centre and course
-          const authCheck = await client.query(
-            'SELECT public.can_manage($1, $2) AS allowed',
-            [s.centre_id, s.course_id]
-          );
-          if (!authCheck.rows[0]?.allowed) {
-            throw new Error(`Unauthorized to add students to centre ${s.centre_id} or course ${s.course_id}`);
-          }
-
           await client.query(
             `INSERT INTO public.student_roster (email, prn, full_name, batch_id, centre_id, course_id)
              VALUES ($1, $2, $3, $4, $5, $6)
@@ -94,20 +99,14 @@ export const rosterRoutes: FastifyPluginAsync = async (app) => {
           inserted++;
         }
 
-        // CERT-In audit logging
-        await client.query(
-          `INSERT INTO public.audit_logs (actor_email, action, entity_type, details, ip_address)
-           VALUES ($1, 'ROSTER_UPLOAD', 'student_roster', $2, $3)`,
-          [req.user!.email, JSON.stringify({ count: inserted }), req.ip]
-        );
-
+        await audit({ actor: req.user!.email, action: 'ROSTER_UPLOAD', entityType: 'student_roster', details: { count: inserted }, ip: req.ip }, client);
         return inserted;
       });
 
-      return reply.send({ ok: true, count });
-    } catch (err: any) {
-      req.log.error(err, 'Roster upsert failed');
-      return reply.status(400).send({ error: err.message });
+      return { ok: true, count };
+    } catch (err) {
+      req.log.error({ err }, 'Roster upsert failed');
+      throw mapDbError(err);
     }
   });
 };

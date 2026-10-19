@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { api } from '../lib/api';
-import { fmt, sessionStatus } from '../lib/format';
+import { fmt, friendlyError, sessionStatus } from '../lib/format';
 
 export function StudentHome() {
   const { data, isLoading, error } = useQuery({
@@ -17,7 +17,7 @@ export function StudentHome() {
   });
 
   if (isLoading) return <p className="muted">Loading…</p>;
-  if (error) return <p className="text-red-600">{error.message}</p>;
+  if (error) return <p role="alert" className="text-red-600">{friendlyError(error.message)}</p>;
 
   const pending = data!.filter((s) => s.status === 'open' && !s.done);
   const upcoming = data!.filter((s) => s.status === 'upcoming');
@@ -29,7 +29,7 @@ export function StudentHome() {
         <h1 className="text-lg font-semibold">Pending feedback</h1>
         {pending.length === 0 && (
           <div className="card space-y-2 text-center py-8">
-            <span className="text-3xl">🎉</span>
+            <span className="text-3xl" aria-hidden>🎉</span>
             <p className="font-medium text-stone-800">You are all caught up!</p>
             <p className="text-xs text-stone-500">There are no pending feedback sessions for your batch right now.</p>
           </div>
@@ -50,16 +50,16 @@ export function StudentHome() {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-                    🔒 Anonymous
+                    <span aria-hidden>🔒</span> Anonymous
                   </span>
                   <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2.5 py-0.5 text-xs font-medium text-stone-600">
-                    ⏱ ~{estMin} min ({count} questions)
+                    <span aria-hidden>⏱</span> ~{estMin} min ({count} questions)
                   </span>
                 </div>
               </div>
               <div className="flex items-center justify-between border-t border-stone-100 pt-3">
                 <span className="text-xs text-amber-700 font-medium">Closes {fmt(s.closes_at)}</span>
-                <span className="btn btn-primary text-xs py-1.5 px-3">Give feedback →</span>
+                <span className="btn btn-primary text-xs py-1.5 px-3">Give feedback <span aria-hidden>→</span></span>
               </div>
             </Link>
           );

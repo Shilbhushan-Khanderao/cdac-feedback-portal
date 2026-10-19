@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../index.js';
-import { query } from '../db/pool.js';
+import { adminQuery as query } from './admin-db.js';
 
 describe('Feedback Sessions Lifecycle & Concurrency Guard Suite', () => {
   let app: FastifyInstance;
@@ -156,7 +156,7 @@ describe('Feedback Sessions Lifecycle & Concurrency Guard Suite', () => {
       headers: { cookie: ccCookie },
     });
 
-    expect(res.statusCode).toBe(400);
+    expect(res.statusCode).toBe(409);
     expect(JSON.parse(res.body).error).toContain('Cannot delete session that already has submissions');
   });
 

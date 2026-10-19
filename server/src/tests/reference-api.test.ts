@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../index.js';
-import { query } from '../db/pool.js';
+import { adminQuery as query } from './admin-db.js';
 
 describe('Reference Tables & Master Data CRUD Integration Tests', () => {
   let app: FastifyInstance;
@@ -221,37 +221,43 @@ describe('Reference Tables & Master Data CRUD Integration Tests', () => {
     expect(JSON.parse(unauthAdd.body).error).toContain('You can only add modules for your assigned course');
 
     // 2. CC successfully adding a module to their ASSIGNED course (PGCP-AC) -> 201 Created
-    const authAdd = await app.inject({
-      method: 'POST',
-      url: '/api/reference/tables/modules',
-      headers: { cookie: ccCookie },
-      payload: {
-        course_id: dacCourse.id,
-        name: 'Authorized DAC Advanced Elective',
-        short_name: 'ADAE',
-        sort_order: 99,
-        active: true,
-      },
-    });
-    expect(authAdd.statusCode).toBe(201);
-    const createdMod = JSON.parse(authAdd.body);
-    expect(createdMod.id).toBeDefined();
-
-    // 3. CC attempting to edit a module belonging to another course (PGCP-AI module) -> 403 Forbidden
-    const aiModRes = await query('SELECT id FROM public.modules WHERE course_id = $1 LIMIT 1', [aiCourse.id]);
-    const aiModId = aiModRes.rows[0]?.id;
-    if (aiModId) {
-      const unauthEdit = await app.inject({
-        method: 'PUT',
-        url: `/api/reference/tables/modules/${aiModId}`,
+    const dynamicShort = `AD_${Math.random().toString(36).substring(2, 6)}`;
+    let createdModId: string | null = null;
+    try {
+      const authAdd = await app.inject({
+        method: 'POST',
+        url: '/api/reference/tables/modules',
         headers: { cookie: ccCookie },
-        payload: { name: 'Hacked AI Module Name' },
+        payload: {
+          course_id: dacCourse.id,
+          name: 'Authorized DAC Advanced Elective',
+          short_name: dynamicShort,
+          sort_order: 99,
+          active: true,
+        },
       });
-      expect(unauthEdit.statusCode).toBe(403);
-      expect(JSON.parse(unauthEdit.body).error).toContain('You can only edit/delete modules for your assigned course');
-    }
+      expect(authAdd.statusCode).toBe(201);
+      const createdMod = JSON.parse(authAdd.body);
+      expect(createdMod.id).toBeDefined();
+      createdModId = createdMod.id;
 
-    // Clean up created module
-    await query('DELETE FROM public.modules WHERE id = $1', [createdMod.id]);
+      // 3. CC attempting to edit a module belonging to another course (PGCP-AI module) -> 403 Forbidden
+      const aiModRes = await query('SELECT id FROM public.modules WHERE course_id = $1 LIMIT 1', [aiCourse.id]);
+      const aiModId = aiModRes.rows[0]?.id;
+      if (aiModId) {
+        const unauthEdit = await app.inject({
+          method: 'PUT',
+          url: `/api/reference/tables/modules/${aiModId}`,
+          headers: { cookie: ccCookie },
+          payload: { name: 'Hacked AI Module Name' },
+        });
+        expect(unauthEdit.statusCode).toBe(403);
+        expect(JSON.parse(unauthEdit.body).error).toContain('You can only edit or delete modules for your assigned course');
+      }
+    } finally {
+      if (createdModId) {
+        await query('DELETE FROM public.modules WHERE id = $1', [createdModId]);
+      }
+    }
   });
 });

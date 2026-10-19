@@ -8,10 +8,10 @@ The C-DAC Feedback Portal currently runs on GitHub Pages (React SPA) and Supabas
 
 ## Decision
 1. Deploy a streamlined architecture composed of:
-   - **Nginx Reverse Proxy & WAF**: Handles TLS termination, static asset serving, rate limits, and Coraza WAF (OWASP CRS v4).
+   - **Nginx Reverse Proxy & WAF**: Handles TLS termination, static asset serving, rate limits, and rate limits (a WAF such as Coraza is a target, not deployed).
    - **Fastify 5 (Node.js 22 LTS)**: Lightweight, high-throughput REST API with Zod validation on every route.
    - **PostgreSQL 16**: Dedicated database on an internal VLAN, with pgAudit, pgcrypto, and Row-Level Security.
-2. Authenticate users via server-side OAuth2 PKCE, issuing an `HttpOnly`, `Secure`, `SameSite=Lax` cookie linked to a database-backed session table.
+2. Authenticate users via server-side OAuth2 (state/PKCE is a target), issuing an `HttpOnly`, `Secure`, `SameSite=Lax` cookie linked to a database-backed session table.
 3. Keep frontend changes minimal by swapping direct `supabase-js` calls with a typed API client, preserving all existing UI pages and components.
 
 ## Consequences

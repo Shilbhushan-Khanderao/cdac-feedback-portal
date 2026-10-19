@@ -34,7 +34,7 @@ export function TableEditor({ table, columns, pk = 'id', order, filters }: Props
   const queryClient = useQueryClient();
   const rows = useQuery({
     queryKey: [table, 'editor', filters],
-    queryFn: () => api.tables.list(table, { ...filters, order }),
+    queryFn: () => api.tables.listAll(table, { ...filters, order }),
   });
 
   const save = useMutation({
@@ -62,7 +62,7 @@ export function TableEditor({ table, columns, pk = 'id', order, filters }: Props
   });
 
   if (rows.isLoading) return <p className="muted">Loading…</p>;
-  if (rows.error) return <p className="text-red-600">{rows.error.message}</p>;
+  if (rows.error) return <p role="alert" className="text-red-600">{rows.error.message}</p>;
 
   const blank: Row = { ...filters };
   return (

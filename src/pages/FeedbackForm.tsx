@@ -87,7 +87,7 @@ export function FeedbackForm() {
   });
 
   if (isLoading) return <p className="muted">Loading…</p>;
-  if (error) return <p className="text-red-600">{error.message}</p>;
+  if (error) return <p role="alert" className="text-red-600">{friendlyError(error.message)}</p>;
   if (!data) return <Message text="This feedback link is not for your batch, or it was removed." />;
   if (isCelebration) {
     return <CelebrationScreen moduleName={data.modules?.name} onDone={() => navigate('/')} />;
@@ -116,7 +116,7 @@ export function FeedbackForm() {
           <span className="text-stone-700">
             {answeredRequired === totalRequired ? (
               <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                ✓ All required questions answered!
+                <span aria-hidden>✓</span> All required questions answered!
               </span>
             ) : (
               <span>
@@ -126,7 +126,7 @@ export function FeedbackForm() {
           </span>
           <span className="text-stone-500 font-semibold">{progressPercent}%</span>
         </div>
-        <div className="h-1.5 w-full overflow-hidden rounded-full bg-stone-100">
+        <div className="h-1.5 w-full overflow-hidden rounded-full bg-stone-100" role="progressbar" aria-label="Required questions answered" aria-valuemin={0} aria-valuemax={100} aria-valuenow={progressPercent}>
           <div
             className={`h-full transition-all duration-300 ease-out ${
               progressPercent === 100 ? 'bg-emerald-600' : 'bg-brand-600'
@@ -140,7 +140,7 @@ export function FeedbackForm() {
         <div className="flex items-center justify-between">
           <h1 className="text-xl font-bold text-stone-900">{data.modules?.name}</h1>
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-semibold">
-            🔒 Anonymous
+            <span aria-hidden>🔒</span> Anonymous
           </span>
         </div>
         {data.faculty.length > 0 && <p className="text-sm muted">Faculty: {data.faculty.join(', ')}</p>}
@@ -217,7 +217,7 @@ function CelebrationScreen({
   onDone: () => void;
 }) {
   return (
-    <div className="mx-auto max-w-md card text-center py-10 px-6 space-y-5 animate-in fade-in zoom-in-95 duration-300">
+    <div className="mx-auto max-w-md card text-center py-10 px-6 space-y-5">
       <div className="mx-auto flex size-16 items-center justify-center rounded-full bg-emerald-100 text-emerald-600">
         <svg viewBox="0 0 24 24" className="size-8" fill="none" stroke="currentColor" strokeWidth="2.5">
           <path strokeLinecap="round" strokeLinejoin="round" d="M4.5 12.75l6 6 9-13.5" />
@@ -232,7 +232,7 @@ function CelebrationScreen({
       </div>
 
       <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800">
-        🔒 <strong>Anonymity Guaranteed:</strong> Your responses have been detached from your identity and stored securely.
+        <span aria-hidden>🔒</span> <strong>Anonymity Guaranteed:</strong> Your responses have been detached from your identity and stored securely.
       </div>
 
       <button onClick={onDone} className="btn btn-primary w-full py-2.5 font-medium">

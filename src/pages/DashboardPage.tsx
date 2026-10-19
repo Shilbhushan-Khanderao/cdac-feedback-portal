@@ -67,7 +67,7 @@ export function DashboardPage() {
     .slice(0, 6);
 
   if (isLoading) return <p className="muted">Loading dashboard…</p>;
-  if (error) return <p className="text-red-700">{error.message}</p>;
+  if (error) return <p role="alert" className="text-red-700">{error.message}</p>;
 
   return (
     <div className="space-y-6">

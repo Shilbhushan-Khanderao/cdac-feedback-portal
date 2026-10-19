@@ -16,13 +16,14 @@ yarn-error.log*
 .env
 .env.*
 !.env.example
+!deploy/.env.example
 *.local
 
 # SSL Certificates & Private Keys
-deploy/nginx/ssl/*.crt
-deploy/nginx/ssl/*.key
-deploy/nginx/ssl/*.pem
-deploy/nginx/ssl/*.csr
+deploy/nginx/certs/*
+!deploy/nginx/certs/.gitkeep
+*.pem
+*.key
 
 # Backups & Database Dumps
 *.sql.enc
@@ -46,9 +47,10 @@ supabase/.branches/
 supabase/.temp/
 supabase/private/
 
-#agents
+#agents / local tooling
 .agents/
 .claude/
+.mcp.json
 
 # Local Dev DB
 .dev_db/

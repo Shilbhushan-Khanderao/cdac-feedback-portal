@@ -3,7 +3,7 @@
 > **Target Platform:** C-DAC Module Feedback Portal  
 > **Auditing Standards:** CERT-In Cyber Security Directions (Sec 70B IT Act 2000), DPDP Act 2023, OWASP Top 10 (2021), GIGW 3.0 (Guidelines for Indian Government Websites) / WCAG 2.1 AA  
 > **Test Suite Execution Date:** October 2026  
-> **Automated Test Execution Status:** **36 / 36 PASSED (100% Pass Rate)**  
+> **Automated Test Execution Status:** **Not current: re-run `npm run server:test` and record the result; earlier figures predate the RLS/role rework**  
 > **Deployment Clearance Status:** **CLEARED FOR VAPT & PRODUCTION HOSTING**
 
 ---
@@ -13,7 +13,7 @@
 A comprehensive, multi-layered security assessment and regulatory compliance audit has been conducted on the C-DAC Module Feedback Portal. The platform was evaluated across four rigorous testing dimensions:
 
 1. **VAPT & Penetration Testing (OWASP Top 10 / CWE):** Insecure Direct Object References (IDOR), Broken Access Control, Privilege Escalation, SQL/NoSQL Injection, Cross-Site Scripting (XSS), Session Hijacking, and Resource Exhaustion.
-2. **CERT-In Directives (Cyber Security Directions under Section 70B, IT Act 2000):** 180-day immutable logging, NTP timestamp synchronization, incident reporting readiness, and secure credentials management.
+2. **CERT-In Directives (Cyber Security Directions under Section 70B, IT Act 2000):** 180-day logging (database-enforced immutability is a target), NTP timestamp synchronization, incident reporting readiness, and secure credentials management.
 3. **DPDP Act 2023 (Digital Personal Data Protection Act):** Complete student de-identification, $k \ge 3$ k-anonymity privacy safeguards, purpose limitation, and Indian sovereign on-prem hosting.
 4. **GIGW 3.0 & WCAG 2.1 Level AA Accessibility:** Accessible form semantics, formula injection defense in exports, and high-contrast palette compliance.
 
@@ -30,7 +30,7 @@ A comprehensive, multi-layered security assessment and regulatory compliance aud
 | **Mandatory 180-Day Log Retention** | CERT-In Direction 2(b) | Append-only `public.audit_logs` table logs all `LOGIN`, `LOGOUT`, session creation, and administrative modifications with actor email, IP address, and timestamp. | `compliance-gov-norms.test.ts`: *Audit logging: Authentications and logouts create immutable audit records* (Passed) |
 | **NTP Synchronization** | CERT-In Direction 2(a) | Documented systemd-timesyncd configuration synchronized with `ntp.nic.in` / National Physical Laboratory (NPL) servers in IST (+05:30). | Verified in `DEPLOYMENT-CHECKLIST.md` §3.1 |
 | **Encrypted Backups** | CERT-In Incident Response Guidance | Containerized backup service runs daily `pg_dump` encrypted with AES-256-CBC, retaining backups for 180 days. Hardcoded keys prohibited. | Verified in `deploy/docker-compose.yml` (key injection via env var) |
-| **Zero External Dependency / Air-Gap** | Critical Sector ICT Directive | All JavaScript packages, CSS, and fonts (`@fontsource/inter`) are bundled locally. Zero external CDNs or analytics trackers at runtime. | `compliance-gov-norms.test.ts`: *Air-Gap & Sovereign Data Residency Verification* (Passed) |
+| **Reduced External Dependency (target: zero; Google OAuth requires egress)** | Critical Sector ICT Directive | All JavaScript packages, CSS, and fonts (`@fontsource/inter`) are bundled locally. Zero external CDNs or analytics trackers at runtime. | `compliance-gov-norms.test.ts`: *Air-Gap & Sovereign Data Residency Verification* (Passed) |
 
 ---
 

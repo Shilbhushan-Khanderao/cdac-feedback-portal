@@ -1,7 +1,7 @@
-import { Document, Font, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
+import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
 
 // Ported from v1 ReportDocument.jsx: title block, 2 chart images per page, one page per comment section.
-Font.registerEmojiSource({ format: 'png', url: 'https://cdnjs.cloudflare.com/ajax/libs/twemoji/14.0.2/72x72/' });
+// No emoji source: it would fetch from a CDN (breaks air-gapped hosts), so emoji are stripped from text instead.
 
 const styles = StyleSheet.create({
   page: { padding: 36, fontSize: 11, fontFamily: 'Helvetica' },
@@ -24,7 +24,11 @@ const styles = StyleSheet.create({
 });
 
 // Strip control characters that corrupt the PDF stream (v1 sanitizePdfText).
-const clean = (t: string) => t.replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '').trim();
+const clean = (t: string) =>
+  t
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    .replace(/[\p{Extended_Pictographic}\u200D\uFE0F\u{1F3FB}-\u{1F3FF}\u{1F1E6}-\u{1F1FF}]/gu, '')
+    .trim();
 
 export type ReportProps = {
   title: string;

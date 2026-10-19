@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../index.js';
-import { query } from '../db/pool.js';
+import { adminQuery as query } from './admin-db.js';
 
 describe('Roster Management & CSV Ingestion Integration Tests', () => {
   let app: FastifyInstance;
@@ -136,8 +136,8 @@ describe('Roster Management & CSV Ingestion Integration Tests', () => {
       payload: crossCentrePayload,
     });
 
-    expect(res.statusCode).toBe(400);
-    expect(JSON.parse(res.body).error).toContain('Unauthorized to add students');
+    expect(res.statusCode).toBe(403);
+    expect(JSON.parse(res.body).error).toContain('cannot add students');
   });
 
   it('5. Successfully upserts new students for managed cohort and logs CERT-In audit entry', async () => {

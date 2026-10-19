@@ -22,9 +22,30 @@ export const STATUS_STYLE: Record<Status, string> = {
 
 /** Turn rate-limit / overload errors into advice a student can act on; pass others through. */
 export function friendlyError(message: string): string {
-  if (/rate limit/i.test(message)) return 'Many students are signing in right now. Wait one minute and try again.';
-  if (/connection pool|timed out|failed to fetch|fetch failed|network/i.test(message)) {
+  if (/<\s*(html|!doctype)/i.test(message)) return 'The service is unavailable. Wait a few seconds and try again.';
+  if (/rate limit|too many requests/i.test(message)) return 'Many students are signing in right now. Wait one minute and try again.';
+  if (/service unavailable|connection pool|timed out|failed to fetch|fetch failed|network/i.test(message)) {
     return 'The server is busy. Wait a few seconds and try again. Your answers are kept.';
   }
   return message;
+}
+
+/** Copy a student feedback link to the clipboard. */
+export async function copyFeedbackLink(url: string) {
+  await navigator.clipboard.writeText(url);
+}
+
+/** Native share sheet, falling back to WhatsApp web. */
+export async function shareFeedbackLink(url: string, moduleName: string) {
+  const title = `C-DAC Feedback: ${moduleName}`;
+  const text = `Please submit your anonymous feedback for ${moduleName}:`;
+  if (navigator.share) {
+    try {
+      await navigator.share({ title, text, url });
+      return;
+    } catch (e) {
+      if ((e as Error).name === 'AbortError') return;
+    }
+  }
+  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(`${text} ${url}`)}`, '_blank', 'noopener');
 }

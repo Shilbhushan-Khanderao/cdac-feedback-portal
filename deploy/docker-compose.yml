@@ -1,89 +1,136 @@
+# Run from repo root:
+#   docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
+# Every secret is required (no defaults): compose refuses to start if one is missing.
+name: cdac-feedback
+
+x-logging: &logging
+  driver: json-file
+  options: { max-size: "10m", max-file: "5" }
+
+x-api-env: &api-env
+  NODE_ENV: ${NODE_ENV:-production}
+  COOKIE_SECRET: ${COOKIE_SECRET:?set COOKIE_SECRET in deploy/.env}
+  GOOGLE_CLIENT_ID: ${GOOGLE_CLIENT_ID:?set GOOGLE_CLIENT_ID in deploy/.env}
+  GOOGLE_CLIENT_SECRET: ${GOOGLE_CLIENT_SECRET:?set GOOGLE_CLIENT_SECRET in deploy/.env}
+  APP_URL: ${APP_URL:?set APP_URL in deploy/.env}
+  CORS_ORIGIN: ${CORS_ORIGIN:?set CORS_ORIGIN in deploy/.env}
+  SESSION_TTL_HOURS: ${SESSION_TTL_HOURS:-24}
+
 services:
-  # ---------------------------------------------------------------- Database Layer
   db:
-    image: postgres:16-alpine
-    container_name: cdac-db
+    image: postgres:16.4-alpine3.20
     restart: unless-stopped
     environment:
-      POSTGRES_USER: ${POSTGRES_USER:-postgres}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_pwd}
-      POSTGRES_DB: ${POSTGRES_DB:-cdac_feedback}
+      POSTGRES_USER: ${POSTGRES_USER:?}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      POSTGRES_DB: ${POSTGRES_DB:?}
+    # No schema/seed mounts: the schema is applied by the `migrate` service.
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ../server/src/db/schema.sql:/docker-entrypoint-initdb.d/01_schema.sql:ro
-      - ../server/src/db/seed.sql:/docker-entrypoint-initdb.d/02_seed.sql:ro
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres}"]
-      interval: 5s
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
       timeout: 5s
-      retries: 5
-    networks:
-      - internal_net
+      retries: 6
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 2g
+    logging: *logging
+    networks: [internal_net]
 
-  # ---------------------------------------------------------------- Fastify API Service
+  # One-shot: applies migrations as the DB owner, then exits. api waits for it.
+  migrate:
+    build: { context: ../server, dockerfile: ../deploy/Dockerfile.server }
+    image: cdac-feedback-api:local
+    restart: "no"
+    command: ["node", "dist/db/migrate.js"]
+    environment:
+      <<: *api-env
+      DATABASE_ADMIN_URL: postgresql://${POSTGRES_USER:?}:${POSTGRES_PASSWORD:?}@db:5432/${POSTGRES_DB:?}
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:?set APP_DB_PASSWORD in deploy/.env}
+    depends_on:
+      db: { condition: service_healthy }
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    logging: *logging
+    networks: [internal_net]
+
   api:
-    build:
-      context: ../server
-      dockerfile: ../deploy/Dockerfile.server
-    container_name: cdac-api
+    image: cdac-feedback-api:local
     restart: unless-stopped
     environment:
-      PORT: 3000
+      <<: *api-env
+      PORT: "3000"
       HOST: 0.0.0.0
-      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_secure_pwd}@db:5432/${POSTGRES_DB:-cdac_feedback}
-      COOKIE_SECRET: ${COOKIE_SECRET:-cdac_super_secure_session_secret_cookie_must_be_32_chars!}
-      NODE_ENV: production
-      CORS_ORIGIN: ${CORS_ORIGIN:-http://localhost}
-      APP_URL: ${APP_URL:-http://localhost}
+      # Runtime connects as the non-superuser, non-owner role feedback_app (RLS enforced).
+      DATABASE_URL: postgresql://feedback_app:${APP_DB_PASSWORD:?set APP_DB_PASSWORD in deploy/.env}@db:5432/${POSTGRES_DB:?}
     depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - internal_net
+      db: { condition: service_healthy }
+      migrate: { condition: service_completed_successfully }
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+      start_period: 20s
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 1g
+    logging: *logging
+    networks: [internal_net]
 
-  # ---------------------------------------------------------------- Nginx Reverse Proxy & WAF
+  # nginx + built SPA (Dockerfile.web builds the frontend; no separate dist step).
   nginx:
-    image: nginx:alpine
-    container_name: cdac-proxy
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.web
+      args:
+        SERVER_NAME: ${SERVER_NAME:?set SERVER_NAME (public hostname) in deploy/.env}
+    image: cdac-feedback-web:local
     restart: unless-stopped
-    ports:
-      - "80:80"
-      - "443:443"
+    ports: ["80:80", "443:443"]
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ../dist:/usr/share/nginx/html:ro
+      - ./nginx/certs:/etc/nginx/certs:ro   # fullchain.pem + privkey.pem
     depends_on:
-      - api
-    networks:
-      - internal_net
+      api: { condition: service_healthy }
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 4
+    read_only: true
+    tmpfs: [/tmp, /var/cache/nginx]
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE, CHOWN, SETUID, SETGID]
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    logging: *logging
+    networks: [internal_net]
 
-  # ---------------------------------------------------------------- 180-Day Automated Encrypted Backup
+  # Daily encrypted pg_dump at 02:00 + 180-day retention + optional offsite copy.
   backup:
-    image: alpine:latest
-    container_name: cdac-backup
+    build: { context: ./backup }
+    image: cdac-feedback-backup:local
     restart: unless-stopped
     environment:
       PGHOST: db
-      PGUSER: ${POSTGRES_USER:-postgres}
-      PGPASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_pwd}
-      PGDATABASE: ${POSTGRES_DB:-cdac_feedback}
-      # S6: No fallback. Provide a strong random key (openssl rand -hex 32) in the
-      # deployment .env file. The container will fail to start without it.
-      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY must be set in .env}
+      PGUSER: ${POSTGRES_USER:?}
+      PGPASSWORD: ${POSTGRES_PASSWORD:?}
+      PGDATABASE: ${POSTGRES_DB:?}
+      BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?set BACKUP_ENCRYPTION_KEY in deploy/.env}
+      BACKUP_OFFSITE_TARGET: ${BACKUP_OFFSITE_TARGET:-}
+      BACKUP_OFFSITE_SSH_KEY: ${BACKUP_OFFSITE_SSH_KEY:-/run/offsite_key}
     volumes:
-      - ./backup:/scripts:ro
       - backups_data:/backups
-    entrypoint: ["/bin/sh", "-c"]
-    command:
-      - |
-        apk add --no-cache postgresql16-client openssl
-        echo "0 2 * * * /scripts/backup.sh >> /var/log/cron.log 2>&1" > /etc/crontabs/root
-        crond -f -l 8
     depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      - internal_net
+      db: { condition: service_healthy }
+    security_opt: ["no-new-privileges:true"]
+    mem_limit: 256m
+    logging: *logging
+    networks: [internal_net]
 
 volumes:
   pgdata:

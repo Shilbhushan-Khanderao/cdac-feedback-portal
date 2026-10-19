@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../index.js';
-import { query } from '../db/pool.js';
+import { adminQuery as query } from './admin-db.js';
 
 describe('VAPT Automated Penetration Testing Suite', () => {
   let app: FastifyInstance;

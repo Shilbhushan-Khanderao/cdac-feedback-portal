@@ -7,13 +7,15 @@ import { api } from '../lib/api';
 import { CohortPicker, cohortReady, emptyCohort, type Cohort } from './CohortPicker';
 import { TableEditor } from './TableEditor';
 
-const sanitize = (str: string) => str.trim().replace(/^[=+\-@\t\r]+/, '');
+// Import keeps names as typed; formula-injection is guarded when CSV is exported (aggregate.ts).
+const CHUNK = 200;
 
 export function RosterPage() {
   const me = useMe();
   const queryClient = useQueryClient();
   const [cohort, setCohort] = useState<Cohort>(() => emptyCohort(me));
   const [busy, setBusy] = useState(false);
+  const [progress, setProgress] = useState('');
   const filters = cohortReady(cohort)
     ? { batch_id: cohort.batch_id, centre_id: cohort.centre_ids[0], course_id: cohort.course_id }
     : null;
@@ -28,23 +30,31 @@ export function RosterPage() {
       transformHeader: (h) => h.trim().toLowerCase().replace(/\s+/g, '_'),
       complete: async ({ data }) => {
         const rows = data.map((r) => ({
-          prn: sanitize(r.prn ?? ''),
-          full_name: sanitize(r.full_name ?? r.name ?? ''),
+          prn: (r.prn ?? '').trim(),
+          full_name: (r.full_name ?? r.name ?? '').trim(),
           email: (r.email ?? r.gmail ?? '').trim().toLowerCase(),
           ...filters,
         }));
         const bad = rows.findIndex((r) => !r.prn || !r.full_name || !r.email);
         if (bad >= 0) return toast.error(`Row ${bad + 2}: prn, name and email are all required`);
         setBusy(true);
-        try {
-          await api.roster.upsert(rows);
-          toast.success(`${rows.length} students saved`);
-          void queryClient.invalidateQueries({ queryKey: ['student_roster'] });
-        } catch (err) {
-          toast.error((err as Error).message);
-        } finally {
-          setBusy(false);
+        const failed: string[] = [];
+        let saved = 0;
+        for (let i = 0; i < rows.length; i += CHUNK) {
+          const chunk = rows.slice(i, i + CHUNK);
+          setProgress(`Uploading ${Math.min(i + CHUNK, rows.length)} of ${rows.length}…`);
+          try {
+            await api.roster.upsert(chunk);
+            saved += chunk.length;
+          } catch (err) {
+            failed.push(`rows ${i + 2}-${i + chunk.length + 1}: ${(err as Error).message}`);
+          }
         }
+        setBusy(false);
+        setProgress('');
+        if (saved) void queryClient.invalidateQueries({ queryKey: ['student_roster'] });
+        if (failed.length) toast.error(`${saved} of ${rows.length} students saved. Failed: ${failed.join('; ')}. Fix and upload again (safe to repeat).`, { duration: 15000 });
+        else toast.success(`${saved} students saved`);
       },
     });
   };
@@ -56,10 +66,11 @@ export function RosterPage() {
         <CohortPicker value={cohort} onChange={setCohort} />
         {filters && (
           <label className={`btn ${busy ? 'opacity-50' : ''}`}>
-            {busy ? 'Uploading…' : 'Upload CSV'}
+            {busy ? progress || 'Uploading…' : 'Upload CSV'}
             <input type="file" accept=".csv,text/csv" className="sr-only" disabled={busy} onChange={upload} />
           </label>
         )}
+        <p className="sr-only" role="status" aria-live="polite">{progress}</p>
         <p className="muted">
           CSV columns: <code>prn, name, email</code>. The email must be the Google account the student signs in with.
           Uploading again updates names and moves students to the selected batch, centre and course.

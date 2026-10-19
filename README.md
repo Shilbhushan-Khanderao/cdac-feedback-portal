@@ -1,69 +1,44 @@
-# C-DAC Module Feedback Portal
+# CDAC Feedback Portal
 
-Students give module feedback from their phones. Course coordinators schedule feedback per module and download PDF/CSV reports. It replaces the CSV-upload flow of [pie-generator-app](../pie-generator-app).
+Students give module feedback; course coordinators (CCs) schedule sessions and download reports; admins manage reference data and staff.
+On-premise deployment: React SPA, Fastify API, PostgreSQL 16, nginx (TLS), Google OAuth sign-in.
 
-- **Students** sign in with Google, see pending feedback for their batch and submit an anonymous form.
-- **Course coordinators** (one per centre/ATC, optionally per course) create sessions, share the link, track who has not submitted yet, and download reports with pie charts, comments and sentiment analysis.
-- **Admins** manage courses, centres (C-DAC centre + ATCs), batches, staff, faculty, modules and the question template.
+## Architecture
 
-Hosting: GitHub Pages (static) + Supabase free tier. No VM.
+```
+browser --443--> nginx (TLS, static SPA, rate limits) --> api (Fastify, :3000) --> db (Postgres 16)
+                                                          ^ migrate (one-shot)       ^ backup (cron, encrypted dumps)
+```
+
+- `src/` React 19 + Vite + Tailwind; `server/` Fastify API; `deploy/` Docker, nginx, backup; `docs/` runbooks.
+- The API connects as the non-superuser role `feedback_app`; Postgres RLS is the authorisation boundary.
+- Anonymity rules are in [CLAUDE.md](CLAUDE.md).
 
 ## Local development
 
-Requires Node 22 and Docker.
-
 ```bash
-npm install
-npx supabase start -x studio,imgproxy,edge-runtime,logflare,vector,realtime,storage-api
-cp .env.example .env.local   # paste ANON_KEY from `npx supabase status`
-npm run dev                  # http://localhost:5173, use the dev login with *@test.local users
-npm test && npm run test:db
+npm ci
+# start a local Postgres 16, create a database, then in server/.env set DATABASE_URL, COOKIE_SECRET (see deploy/.env.example)
+npm run server:dev     # API on :3000
+npm run dev            # SPA on :5173
+npx tsc -b && npm test && npm run server:test
 ```
 
-## Production setup (one time)
+## Deploy (campus host)
 
-1. **Supabase project**: create a free project (region Mumbai). Then link it and apply the schema:
-   ```bash
-   npx supabase login
-   npx supabase link --project-ref <ref>
-   npx supabase db push
-   ```
-2. **First admin and faculty**: in the Supabase SQL editor, run:
-   ```sql
-   insert into staff_roster (email, full_name, role) values ('you@gmail.com', 'Your Name', 'admin');
-   ```
-   Then run `supabase/private/faculty.sql`. That file is gitignored so real names stay out of this public repo. You can also add faculty under **Setup > Faculty**.
-3. **Google sign-in**:
-   - In Google Cloud Console, create an OAuth client of type *Web application*.
-   - Set its authorized redirect URI to `https://<ref>.supabase.co/auth/v1/callback`.
-   - In Supabase, go to **Authentication > Providers > Google** and paste the client ID and secret.
-4. **Roster gate**: in Supabase, go to **Authentication > Hooks > Before User Created**. Choose Postgres function `public.hook_restrict_signup_to_roster`.
-5. **Redirect URLs**: in Supabase, go to **Authentication > URL Configuration**. Set Site URL to `https://<github-user>.github.io/cdac-feedback-portal/`.
-6. **GitHub**:
-   - Add repo secrets `VITE_SUPABASE_URL` and `VITE_SUPABASE_ANON_KEY`.
-   - In **Settings > Pages**, set Source to *GitHub Actions*.
-   - Push to `master` to deploy.
+```bash
+cp deploy/.env.example deploy/.env      # fill every value
+cp fullchain.pem privkey.pem deploy/nginx/certs/
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
+docker compose --env-file deploy/.env -f deploy/docker-compose.yml run --rm api node dist/db/bootstrap-admin.js admin@example.in "Admin Name"
+```
 
-`keepalive.yml` pings the database every 2 days. Without it, a free project pauses after 7 idle days.
+`migrate` runs automatically before `api`. Full procedure: [DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md) and [docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md](docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md).
 
-## Day-to-day
+## CI
 
-1. Admin adds centres (C-DAC centre + ATCs) and CCs under **Setup**. Admin also creates each batch once (e.g. `Aug 2026`); every centre and course shares it.
-2. Each CC uploads their students under **Students**: pick batch and course (centre is fixed to theirs). The CSV has columns `prn,name,email`, and each email must be the student's Google account.
-3. CC creates a session under **Sessions > New session**: batch, course, module, faculty, dates. If a faculty member is missing, type the name and click **Add faculty**. Admin can tick several centres to create one session per centre.
-4. CC uses **Copy student link** and shares the link on the batch group. Only students of that centre, course and batch can open and submit it.
-5. When the session closes, CC uses **Download PDF**. To keep answers anonymous, results appear only after the session closes and only when at least 3 students responded. A closed session's schedule is final.
+`.github/workflows/ci.yml`: frontend `tsc`, vitest, build, `npm audit`; server `tsc` and tests against a Postgres 16 service; Docker builds of both images.
 
-## Capacity (free tier)
+## Status
 
-Load test on a local stack capped at the free plan's size (1 CPU, 512 MB). Each virtual student ran the real sequence: who-am-I, home, form, submit.
-
-| Students arriving | Errors | Time per student (p50 / p95) |
-|---|---|---|
-| 700 over 60 s | 0 | 16 ms / 27 ms |
-| 700 within 10 s | 0 | 19 ms / 4.9 s (queued, all saved) |
-| 1,400 within 10 s | 8% got "server busy" (retried automatically on screens; Submit pressed again) | 37 s / 43 s |
-
-- **Sign-in is the real limit.** Supabase Auth allows 30 sign-ins and 150 token refreshes per 5 minutes **per IP address**. A centre's lab usually shares one public IP. In the dashboard, go to **Authentication > Rate Limits** and raise *sign-ups and sign-ins* (e.g. 1500) and *token refreshes* (e.g. 3000).
-- Students sign in once, any time before the session. They stay signed in, so a session only needs data requests.
-- Keep feedback windows open for a day or more. If a whole centre must submit in one lab period, have students sign in a few minutes earlier, in two groups.
+Security posture, test results and VAPT status are tracked in `docs/vapt/`. Items marked "target" there are not yet implemented.

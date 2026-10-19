@@ -120,6 +120,12 @@ export interface SessionReportResult {
 
 const API_BASE = import.meta.env.VITE_API_BASE ?? '';
 
+export class ApiError extends Error {
+  constructor(message: string, public status: number) {
+    super(message);
+  }
+}
+
 async function request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
   const res = await fetch(url, {
@@ -133,16 +139,29 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
 
   if (!res.ok) {
     let errMsg = `Request failed: ${res.status} ${res.statusText}`;
+    if (res.status === 429) errMsg = 'Too many requests. Rate limit reached, wait a minute and try again.';
+    else if (res.status >= 502 && res.status <= 504) errMsg = 'Service unavailable. Please try again in a moment.';
     try {
+      // Proxy error pages are HTML; only trust a JSON body.
       const errJson = await res.json();
       if (errJson.error) errMsg = errJson.error;
     } catch {
       // ignore
     }
-    throw new Error(errMsg);
+    throw new ApiError(errMsg, res.status);
   }
 
   return res.json();
+}
+
+/** Fetch every page of a list endpoint (server caps one page at `page` rows). */
+export async function fetchAll<T>(get: (p: { limit: number; offset: number }) => Promise<T[]>, page: number): Promise<T[]> {
+  const out: T[] = [];
+  for (let offset = 0; ; offset += page) {
+    const rows = await get({ limit: page, offset });
+    out.push(...rows);
+    if (rows.length < page) return out;
+  }
 }
 
 export const api = {
@@ -208,6 +227,8 @@ export const api = {
     get: (id: string) => request<SessionReportResult>(`/api/reports/${id}`),
   },
   roster: {
+    listAll: (f: { batch_id: string; centre_id: string; course_id: string }) =>
+      fetchAll((p) => api.roster.list({ ...f, ...p }), 1000),
     list: (params?: { batch_id?: string; centre_id?: string; course_id?: string; limit?: number; offset?: number }) => {
       const q = params ? '?' + new URLSearchParams(params as Record<string, any>).toString() : '';
       return request<StudentRosterRow[]>(`/api/roster${q}`);
@@ -223,6 +244,8 @@ export const api = {
       const q = params ? '?' + new URLSearchParams(params).toString() : '';
       return request<T[]>(`/api/reference/tables/${table}${q}`);
     },
+    listAll: <T = Record<string, unknown>>(table: string, params?: Record<string, string>) =>
+      fetchAll((p) => api.tables.list<T>(table, { ...params, limit: String(p.limit), offset: String(p.offset) }), 500),
     create: <T = Record<string, unknown>>(table: string, data: Record<string, unknown>) =>
       request<T>(`/api/reference/tables/${table}`, {
         method: 'POST',

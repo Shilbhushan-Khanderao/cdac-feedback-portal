@@ -1,16 +1,17 @@
 import { lazy, Suspense, type ReactNode } from 'react';
-import { createHashRouter, Navigate, NavLink, Outlet, RouterProvider } from 'react-router';
+import { createHashRouter, Navigate, NavLink, Outlet, RouterProvider, useRouteError } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
-import { AuthGate, isStaff, useMe } from './auth';
+import { AuthGate, isStaff, signOut, useMe } from './auth';
+import { ApiError } from './lib/api';
 import { StudentHome } from './pages/StudentHome';
 import { FeedbackForm } from './pages/FeedbackForm';
-import { DashboardPage } from './pages/DashboardPage';
-import { SessionsPage } from './pages/SessionsPage';
-import { RosterPage } from './pages/RosterPage';
-import { ManagePage } from './pages/ManagePage';
 
-// Charts, NLP and PDF code load only when staff open a report.
+// Staff-only code (charts, NLP, PDF, CSV) never loads for students.
+const DashboardPage = lazy(() => import('./pages/DashboardPage').then((m) => ({ default: m.DashboardPage })));
+const SessionsPage = lazy(() => import('./pages/SessionsPage').then((m) => ({ default: m.SessionsPage })));
+const RosterPage = lazy(() => import('./pages/RosterPage').then((m) => ({ default: m.RosterPage })));
+const ManagePage = lazy(() => import('./pages/ManagePage').then((m) => ({ default: m.ManagePage })));
 const SessionReport = lazy(() => import('./pages/SessionReport'));
 
 interface NavItem {
@@ -48,6 +49,9 @@ function Layout() {
     `rounded-md px-3 py-2 text-sm transition-colors duration-150 ${isActive ? 'bg-brand-50 font-semibold text-brand-800' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'}`;
   return (
     <>
+      <a href="#main" onClick={(e) => { e.preventDefault(); document.getElementById('main')?.focus(); }} className="sr-only focus:not-sr-only focus:absolute focus:left-2 focus:top-2 focus:z-30 focus:rounded-md focus:bg-white focus:px-3 focus:py-2">
+        Skip to content
+      </a>
       <header className="sticky top-0 z-20 border-b border-stone-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
           <span className="mr-3 flex items-center gap-2 font-semibold tracking-tight">
@@ -72,16 +76,14 @@ function Layout() {
           </span>
           <button
             className="btn px-3 py-1.5"
-            onClick={() => {
-              window.location.href = '/auth/logout';
-            }}
+            onClick={() => void signOut()}
           >
             Sign out
           </button>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl px-4 py-6">
-        <Suspense fallback={<p className="muted">Loading…</p>}>
+      <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-6 outline-none">
+        <Suspense fallback={<p className="muted" role="status">Loading…</p>}>
           <Outlet />
         </Suspense>
       </main>
@@ -93,9 +95,26 @@ function Home() {
   return isStaff(useMe()) ? <DashboardPage /> : <StudentHome />;
 }
 
+function RouteError() {
+  const err = useRouteError();
+  console.error(err);
+  return (
+    <main className="mx-auto mt-16 max-w-sm px-4">
+      <div className="card space-y-3 text-center" role="alert">
+        <h1 className="text-lg font-semibold">Something went wrong</h1>
+        <p className="muted">Reload the page. If it keeps happening, contact your coordinator.</p>
+        <button className="btn btn-primary" onClick={() => window.location.reload()}>
+          Reload
+        </button>
+      </div>
+    </main>
+  );
+}
+
 const router = createHashRouter([
   {
     element: <Layout />,
+    errorElement: <RouteError />,
     children: [
       { path: '/', element: <Home /> },
       {
@@ -143,7 +162,13 @@ const router = createHashRouter([
   },
 ]);
 
-const queryClient = new QueryClient({ defaultOptions: { queries: { retry: 2, refetchOnWindowFocus: false } } });
+const queryClient = new QueryClient({ defaultOptions: {
+    queries: {
+      // Client errors (4xx) will not fix themselves; only retry network/5xx.
+      retry: (n, e) => !(e instanceof ApiError && e.status >= 400 && e.status < 500) && n < 2,
+      refetchOnWindowFocus: false,
+    },
+  } });
 
 export default function App() {
   return (

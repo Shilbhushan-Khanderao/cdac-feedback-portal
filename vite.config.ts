@@ -3,7 +3,7 @@ import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 
-// base './' so the build works under https://<user>.github.io/<repo>/
+// base './' keeps asset URLs relative so the build works from any path.
 export default defineConfig({
   base: './',
   plugins: [react(), tailwindcss()],

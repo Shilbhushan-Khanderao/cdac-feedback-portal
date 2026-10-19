@@ -4,7 +4,7 @@ import { Link, useNavigate, useParams } from 'react-router';
 import { toPng } from 'html-to-image';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
-import { fmt, sessionStatus, STATUS_STYLE, toLocalInput } from '../lib/format';
+import { copyFeedbackLink, fmt, shareFeedbackLink, sessionStatus, STATUS_STYLE, toLocalInput } from '../lib/format';
 import { aggregate, toCsv, type Answers, type Question } from '../reports/aggregate';
 import { PieChart } from '../reports/PieChart';
 import { CommentAnalysis } from '../reports/CommentAnalysis';
@@ -35,7 +35,7 @@ export default function SessionReport() {
         // Answers come only from session_report(): after close, at least 3, in random order.
         api.reports.get(id),
         api.feedback.submissions(id),
-        api.roster.list({
+        api.roster.listAll({
           batch_id: session.batch_id,
           centre_id: session.centre_id,
           course_id: session.course_id,
@@ -93,7 +93,7 @@ export default function SessionReport() {
   });
 
   if (isLoading) return <p className="muted">Loading…</p>;
-  if (error) return <p className="text-red-600">{error.message}</p>;
+  if (error) return <p role="alert" className="text-red-600">{error.message}</p>;
   if (!data || !report) return <p className="card">Session not found, or not in your centre.</p>;
 
   const { session, roster, pending, resultStatus, submittedCount } = data;
@@ -107,24 +107,10 @@ export default function SessionReport() {
 
   const studentUrl = `${location.origin}${location.pathname}#/feedback/${id}`;
   const copyLink = async () => {
-    await navigator.clipboard.writeText(studentUrl);
+    await copyFeedbackLink(studentUrl);
     toast.success('Link copied. Share it with the batch.');
   };
-
-  const shareLink = async () => {
-    const title = `C-DAC Feedback: ${moduleName}`;
-    const text = `Please submit your anonymous feedback for ${moduleName}:`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url: studentUrl });
-        return;
-      } catch (e: any) {
-        if (e.name === 'AbortError') return;
-      }
-    }
-    const waText = encodeURIComponent(`${text} ${studentUrl}`);
-    window.open(`https://api.whatsapp.com/send?text=${waText}`, '_blank');
-  };
+  const shareLink = () => shareFeedbackLink(studentUrl, moduleName);
 
   const downloadPdf = async () => {
     setPdfBusy(true);
@@ -200,10 +186,10 @@ export default function SessionReport() {
         )}
         <div className="flex flex-wrap gap-2">
           <button className="btn btn-primary" onClick={copyLink}>
-            📋 Copy student link
+            <span aria-hidden>📋</span> Copy student link
           </button>
           <button className="btn bg-emerald-600 text-white hover:bg-emerald-700 font-medium" onClick={shareLink}>
-            📲 Share to WhatsApp
+            <span aria-hidden>📲</span> Share to WhatsApp
           </button>
           <button className="btn" onClick={downloadPdf} disabled={pdfBusy || report.total === 0}>
             {pdfBusy ? 'Preparing PDF…' : 'Download PDF'}

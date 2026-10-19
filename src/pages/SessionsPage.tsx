@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
 import { toast } from 'sonner';
 import { api } from '../lib/api';
-import { fmt, sessionStatus, STATUS_STYLE } from '../lib/format';
+import { copyFeedbackLink, fmt, shareFeedbackLink, sessionStatus, STATUS_STYLE } from '../lib/format';
 import { cohortKey, useBatches, useCohortSizes, useCourses } from '../lib/reference';
 import { CreateSessionForm } from './sessions/CreateSessionForm';
 
@@ -35,26 +35,10 @@ export function SessionsPage() {
   const studentLink = createdSession ? `${location.origin}${location.pathname}#/feedback/${createdSession.id}` : '';
 
   const copyCreatedLink = async () => {
-    if (!studentLink) return;
-    await navigator.clipboard.writeText(studentLink);
+    await copyFeedbackLink(studentLink);
     toast.success('Feedback link copied to clipboard!');
   };
-
-  const shareCreatedLink = async () => {
-    if (!studentLink) return;
-    const title = `C-DAC Feedback: ${createdSession?.moduleName ?? 'Module'}`;
-    const text = `Please submit your anonymous feedback for ${createdSession?.moduleName ?? 'the module'}:`;
-    if (navigator.share) {
-      try {
-        await navigator.share({ title, text, url: studentLink });
-        return;
-      } catch (e: any) {
-        if (e.name === 'AbortError') return;
-      }
-    }
-    const waText = encodeURIComponent(`${text} ${studentLink}`);
-    window.open(`https://api.whatsapp.com/send?text=${waText}`, '_blank');
-  };
+  const shareCreatedLink = () => shareFeedbackLink(studentLink, createdSession?.moduleName ?? 'the module');
 
   return (
     <div className="space-y-4">
@@ -153,7 +137,7 @@ export function SessionsPage() {
       )}
 
       {sessions.isLoading && <p className="muted">Loading…</p>}
-      {sessions.error && <p className="text-red-600">{sessions.error.message}</p>}
+      {sessions.error && <p role="alert" className="text-red-600">{sessions.error.message}</p>}
       {sessions.data && rows.length === 0 && <p className="card muted">No sessions yet. Create one with “New session”.</p>}
 
       <div className="space-y-2">

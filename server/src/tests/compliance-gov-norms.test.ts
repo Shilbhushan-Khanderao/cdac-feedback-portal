@@ -1,7 +1,7 @@
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../index.js';
-import { query } from '../db/pool.js';
+import { adminQuery as query } from './admin-db.js';
 
 describe('Government Norms & Regulatory Compliance Suite (CERT-In, DPDP Act 2023, GIGW)', () => {
   let app: FastifyInstance;

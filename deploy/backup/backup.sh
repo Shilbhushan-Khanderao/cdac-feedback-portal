@@ -1,36 +1,30 @@
 #!/bin/sh
-set -e
+# Encrypted pg_dump -> /backups, 180-day retention, optional offsite copy. Logs to stdout.
+set -eu
+set -o pipefail
+: "${BACKUP_ENCRYPTION_KEY:?BACKUP_ENCRYPTION_KEY required}"
+export BACKUP_ENCRYPTION_KEY   # openssl reads it via -pass env: (never on argv)
 
-# ============================================================================
-# C-DAC Feedback Portal Encrypted Backup Script
-# CERT-In Compliant 180-Day Automated Retention
-# ============================================================================
+DIR=/backups
+OUT="${DIR}/cdac_feedback_$(date +%Y%m%d_%H%M%S).sql.gz.enc"
+TMP="${OUT}.part"
+mkdir -p "$DIR"
+trap 'rm -f "$TMP"' EXIT
 
-BACKUP_DIR="/backups"
-TIMESTAMP=$(date +"%Y%m%d_%H%M%S")
-BACKUP_FILE="${BACKUP_DIR}/cdac_feedback_${TIMESTAMP}.sql.gz"
-ENCRYPTED_FILE="${BACKUP_FILE}.enc"
+echo "[backup] dumping ${PGDATABASE:?}"
+pg_dump -h "${PGHOST:-db}" -U "${PGUSER:?}" -d "$PGDATABASE" | gzip \
+  | openssl enc -aes-256-cbc -salt -pbkdf2 -pass env:BACKUP_ENCRYPTION_KEY -out "$TMP"
+[ -s "$TMP" ] || { echo "[backup] ERROR: empty output"; exit 1; }
+mv "$TMP" "$OUT"
+echo "[backup] created $OUT ($(wc -c < "$OUT") bytes)"
 
-mkdir -p "${BACKUP_DIR}"
+find "$DIR" -type f -name 'cdac_feedback_*.enc' -mtime +180 -delete
 
-echo "[backup] Starting database backup at ${TIMESTAMP}..."
-
-# Export database dump compressed
-pg_dump -h "${PGHOST:-db}" -U "${PGUSER:-postgres}" -d "${PGDATABASE:-cdac_feedback}" | gzip > "${BACKUP_FILE}"
-
-# Encrypt backup using AES-256-CBC with encryption key from env
-if [ -n "${BACKUP_ENCRYPTION_KEY}" ]; then
-  echo "[backup] Encrypting backup file..."
-  openssl enc -aes-256-cbc -salt -pbkdf2 -in "${BACKUP_FILE}" -out "${ENCRYPTED_FILE}" -k "${BACKUP_ENCRYPTION_KEY}"
-  rm -f "${BACKUP_FILE}"
-  echo "[backup] Encrypted backup created: ${ENCRYPTED_FILE}"
+if [ -n "${BACKUP_OFFSITE_TARGET:-}" ]; then
+  echo "[backup] offsite copy to ${BACKUP_OFFSITE_TARGET}"
+  rsync -a -e "ssh -i ${BACKUP_OFFSITE_SSH_KEY:-/run/offsite_key} -o StrictHostKeyChecking=accept-new" \
+    "$OUT" "$BACKUP_OFFSITE_TARGET" || { echo "[backup] ERROR: offsite copy failed"; exit 1; }
 else
-  echo "[backup] Unencrypted backup created (WARNING: set BACKUP_ENCRYPTION_KEY for production): ${BACKUP_FILE}"
+  echo "[backup] WARNING: BACKUP_OFFSITE_TARGET unset, backup exists only on this host"
 fi
-
-# Rotate backups: enforce 180-day retention per CERT-In guidelines
-echo "[backup] Pruning backups older than 180 days..."
-find "${BACKUP_DIR}" -type f -name "cdac_feedback_*.enc" -mtime +180 -exec rm {} +
-find "${BACKUP_DIR}" -type f -name "cdac_feedback_*.sql.gz" -mtime +180 -exec rm {} +
-
-echo "[backup] Backup completed successfully."
+echo "[backup] done"

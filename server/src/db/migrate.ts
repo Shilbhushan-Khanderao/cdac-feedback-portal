@@ -1,55 +1,77 @@
 import fs from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pool } from './pool.js';
+import pg from 'pg';
 
+// Standalone on purpose: no import of config.ts/pool.ts (those need the app env and the
+// app role). Uses DATABASE_ADMIN_URL (owner/superuser). Never seeds.
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+export const APP_ROLE = 'feedback_app';
 
-export async function runMigrations() {
-  console.log('[migrate] Starting database migration...');
-  const schemaPath = path.join(__dirname, 'schema.sql');
-  const schemaSql = await fs.readFile(schemaPath, 'utf8');
+try {
+  process.loadEnvFile();
+} catch {
+  // .env is optional
+}
 
-  const client = await pool.connect();
-  try {
-    await client.query('BEGIN');
-    await client.query(schemaSql);
-    await client.query('COMMIT');
-    console.log('[migrate] Schema applied successfully.');
-  } catch (err) {
-    await client.query('ROLLBACK');
-    console.error('[migrate] Migration failed:', err);
-    throw err;
-  } finally {
-    client.release();
-  }
-
-  // Seed runs in a separate transaction so a seed error
-  // doesn't attempt ROLLBACK on the already-committed schema.
-  const seedPath = path.join(__dirname, 'seed.sql');
-  try {
-    const seedSql = await fs.readFile(seedPath, 'utf8');
-    const seedClient = await pool.connect();
-    try {
-      await seedClient.query('BEGIN');
-      await seedClient.query(seedSql);
-      await seedClient.query('COMMIT');
-      console.log('[migrate] Seed data applied successfully.');
-    } catch (seedErr) {
-      await seedClient.query('ROLLBACK');
-      console.error('[migrate] Seed failed:', seedErr);
-      throw seedErr;
-    } finally {
-      seedClient.release();
+async function ensureAppRole(client: pg.Client) {
+  const pw = process.env.APP_DB_PASSWORD;
+  const exists = (await client.query('SELECT 1 FROM pg_roles WHERE rolname = $1', [APP_ROLE])).rowCount;
+  if (!exists && !pw) throw new Error('APP_DB_PASSWORD is required to create the feedback_app role');
+  // format(%L) quotes the password server-side; DDL cannot take bind parameters.
+  const attrs = 'LOGIN NOSUPERUSER NOBYPASSRLS NOCREATEDB NOCREATEROLE NOREPLICATION';
+  if (!exists) {
+    const { rows } = await client.query(`SELECT format('CREATE ROLE ${APP_ROLE} ${attrs} PASSWORD %L', $1::text) AS s`, [pw]);
+    await client.query(rows[0].s);
+    console.log(`[migrate] Created role ${APP_ROLE}`);
+  } else {
+    // Re-assert the safe attributes; rotate password when one is supplied.
+    await client.query(`ALTER ROLE ${APP_ROLE} ${attrs}`);
+    if (pw) {
+      const { rows } = await client.query(`SELECT format('ALTER ROLE ${APP_ROLE} PASSWORD %L', $1::text) AS s`, [pw]);
+      await client.query(rows[0].s);
     }
-  } catch (e: any) {
-    if (e.code !== 'ENOENT') throw e;
-    // seed.sql is optional
+  }
+  const { rows } = await client.query(`SELECT format('GRANT CONNECT ON DATABASE %I TO ${APP_ROLE}', current_database()) AS s`);
+  await client.query(rows[0].s);
+}
+
+export async function runMigrations(adminUrl = process.env.DATABASE_ADMIN_URL) {
+  if (!adminUrl) throw new Error('DATABASE_ADMIN_URL is required to run migrations');
+  const dir = path.join(__dirname, 'migrations');
+  const files = (await fs.readdir(dir)).filter((f) => /^\d{3}_.+\.sql$/.test(f)).sort();
+
+  const client = new pg.Client({ connectionString: adminUrl });
+  await client.connect();
+  try {
+    await client.query('SELECT pg_advisory_lock(727274)'); // serialise concurrent runners
+    await client.query(`CREATE TABLE IF NOT EXISTS public.schema_migrations (
+      version TEXT PRIMARY KEY, applied_at TIMESTAMPTZ NOT NULL DEFAULT now())`);
+    await client.query('REVOKE ALL ON public.schema_migrations FROM PUBLIC');
+    await ensureAppRole(client);
+
+    const done = new Set((await client.query('SELECT version FROM public.schema_migrations')).rows.map((r) => r.version));
+    for (const f of files) {
+      if (done.has(f)) continue;
+      const sql = await fs.readFile(path.join(dir, f), 'utf8');
+      try {
+        await client.query('BEGIN');
+        await client.query(sql);
+        await client.query('INSERT INTO public.schema_migrations (version) VALUES ($1)', [f]);
+        await client.query('COMMIT');
+        console.log(`[migrate] Applied ${f}`);
+      } catch (err) {
+        await client.query('ROLLBACK');
+        console.error(`[migrate] ${f} failed`);
+        throw err;
+      }
+    }
+  } finally {
+    await client.end();
   }
 }
 
-// Run directly if invoked from CLI
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   runMigrations()
     .then(() => {
       console.log('[migrate] Done.');

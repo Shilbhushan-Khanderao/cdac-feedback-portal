@@ -20,7 +20,7 @@
 ### Network Perimeter & Ports
 - **Exposed Public Ports**:
   - `80/tcp` (HTTP) -> 301 Permanent Redirect to HTTPS
-  - `443/tcp` (HTTPS) -> TLS 1.3 only, Nginx Reverse Proxy + WAF
+  - `443/tcp` (HTTPS) -> TLS 1.2/1.3, Nginx Reverse Proxy (rate limits; no WAF)
 - **Internal / Non-Exposed Ports** (Blocked by firewall / internal Docker network):
   - `3000/tcp` (Fastify API backend) - internal Docker network only
   - `5432/tcp` (PostgreSQL DB) - internal Docker network only, `127.0.0.1` binding

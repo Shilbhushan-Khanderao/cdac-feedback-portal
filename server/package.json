@@ -6,10 +6,12 @@
   "description": "Hardened Fastify API server for C-DAC Module Feedback Portal",
   "scripts": {
     "dev": "tsx watch src/index.ts",
-    "build": "tsc",
+    "build": "tsc && node -e \"require('fs').cpSync('src/db/migrations','dist/db/migrations',{recursive:true})\"",
     "start": "node dist/index.js",
-    "test": "vitest run src/tests",
-    "migrate": "tsx src/db/migrate.ts"
+    "test": "vitest run src/tests --testTimeout=30000",
+    "migrate": "tsx src/db/migrate.ts",
+    "seed": "tsx src/db/seed.ts",
+    "bootstrap-admin": "tsx src/db/bootstrap-admin.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.2",

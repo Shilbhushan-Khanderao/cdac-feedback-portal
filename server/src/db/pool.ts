@@ -5,7 +5,7 @@ const { Pool } = pg;
 
 export const pool = new Pool({
   connectionString: config.DATABASE_URL,
-  max: 20,
+  max: Number(process.env.DB_POOL_MAX) || 20,
   idleTimeoutMillis: 30000,
   connectionTimeoutMillis: 5000,
 });
@@ -22,6 +22,19 @@ export async function query<R extends pg.QueryResultRow = any>(
   return pool.query<R>(text, params);
 }
 
+let appRoleAvailable: boolean | null = null;
+
+async function hasFeedbackAppRole(client: pg.PoolClient): Promise<boolean> {
+  if (appRoleAvailable !== null) return appRoleAvailable;
+  try {
+    const res = await client.query("SELECT 1 FROM pg_roles WHERE rolname = 'feedback_app'");
+    appRoleAvailable = (res.rowCount ?? 0) > 0;
+  } catch {
+    appRoleAvailable = false;
+  }
+  return appRoleAvailable;
+}
+
 /** Execute work within a transaction setting app.current_user_email for RLS / audit triggers */
 export async function withUser<T>(
   email: string | null,
@@ -30,10 +43,13 @@ export async function withUser<T>(
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
-    if (email) {
-      // Sets session variable for the duration of the transaction
-      await client.query('SELECT set_config($1, $2, true)', ['app.current_user_email', email]);
+    // Pin the unprivileged role (no-op for the normal feedback_app connection; strips
+    // superuser rights if DATABASE_URL were ever misconfigured) and set the identity
+    // GUC, both for this transaction only. A null email leaves my_email() NULL.
+    if (await hasFeedbackAppRole(client)) {
+      await client.query('SET LOCAL ROLE feedback_app');
     }
+    await client.query('SELECT set_config($1, $2, true)', ['app.current_user_email', email ?? '']);
     const result = await fn(client);
     await client.query('COMMIT');
     return result;

@@ -4,7 +4,7 @@
 |---|---|---|---|
 | **CERT-In Direction 2(a)** | NTP Synchronization | System clock synchronized with Indian Standard Time via NPL / NIC NTP servers (`samay1.nplindia.org`). | Documented in `docs/vapt/INCIDENT-RESPONSE.md`. |
 | **CERT-In Direction 2(b)** | 6-Hour Incident Notification | Formal incident notification procedure to `incident@cert-in.org.in` with emergency contact workflow. | Documented in `docs/vapt/INCIDENT-RESPONSE.md`. |
-| **CERT-In Direction 2(e)** | 180-Day Audit Logging | Immutable `public.audit_logs` table storing actor, action, timestamp, and client IP inside Indian jurisdiction. | Verified in `server/src/db/schema.sql` and `server/src/routes/roster.ts`. |
+| **CERT-In Direction 2(e)** | 180-Day Audit Logging | Append-only (target: DB-enforced immutable) `public.audit_logs` table storing actor, action, timestamp, and client IP inside Indian jurisdiction. | Verified in `server/src/db/schema.sql` and `server/src/routes/roster.ts`. |
 | **DPDP Act 2023** | Notice & Consent | Explicit bilingual/English consent notice modal on first student login detailing purpose limitation and non-identifiable feedback storage. | Implemented in `src/auth.tsx`. |
 | **Core Privacy Invariant** | Student Anonymity | `public.responses` table contains only `session_id` and `answers` (JSONB). No user email, PRN, or timestamp. $k \ge 3$ response threshold + randomized ordering. | Enforced in `submit_feedback` & `session_report` stored procedures in `schema.sql`. |
 | **OWASP ASVS 2.1** | Session Management | Fastify signed cookies (`HttpOnly`, `SameSite=Lax`, `Secure`), 256-bit cryptographically random tokens, server-side revocation in `user_sessions`. | Verified in `server/src/auth/session.ts` and `server/src/tests/server.test.ts`. |

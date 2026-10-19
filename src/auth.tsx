@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
-import { api } from './lib/api';
+import { api, ApiError } from './lib/api';
 import { friendlyError } from './lib/format';
 
 export type Me = {
@@ -23,20 +23,51 @@ export function useMe(): Me {
 
 export const isStaff = (me: Me) => me.role !== 'student';
 
+/** POST logout, drop local drafts, then reload so no cached state survives. */
+export async function signOut() {
+  try {
+    await api.auth.logout();
+  } finally {
+    try {
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith('cdac_draft_'))
+        .forEach((k) => localStorage.removeItem(k));
+    } catch {
+      // storage unavailable
+    }
+    window.location.assign(window.location.pathname);
+  }
+}
+
+// ponytail: consent is per browser and user; a server-side record is still to do.
+const consentKey = (email: string) => `cdac_dpdp_consent_${email.toLowerCase()}`;
+const readConsent = (email: string) => {
+  try {
+    return localStorage.getItem(consentKey(email)) === 'true';
+  } catch {
+    return false;
+  }
+};
+
 /** Renders children only for a signed-in user who is on a roster. */
 export function AuthGate({ children }: { children: ReactNode }) {
   const [me, setMe] = useState<Me | null | undefined>(undefined);
-  const [hasConsent, setHasConsent] = useState<boolean>(() => {
-    return localStorage.getItem('cdac_dpdp_consent') === 'true';
-  });
+  const [unavailable, setUnavailable] = useState(false);
+  const [consented, setConsented] = useState<string | null>(null);
   const queryClient = useQueryClient();
 
   const refreshMe = async () => {
     try {
       const res = await api.auth.whoami();
+      setUnavailable(false);
       setMe(res.user ?? null);
-    } catch {
-      setMe(null);
+    } catch (e) {
+      // 401 means signed out; anything else (network, 5xx) is an outage, not a login problem.
+      if (e instanceof ApiError && e.status === 401) setMe(null);
+      else {
+        setUnavailable(true);
+        setMe(null);
+      }
     }
   };
 
@@ -45,14 +76,20 @@ export function AuthGate({ children }: { children: ReactNode }) {
     void refreshMe();
   }, [queryClient]);
 
-  const signOut = async () => {
-    await api.auth.logout();
-    queryClient.clear();
-    setMe(null);
-  };
-
   if (me === undefined) {
     return <p className="p-8 text-center muted">Loading…</p>;
+  }
+
+  if (unavailable) {
+    return (
+      <Centered>
+        <h1 className="text-xl font-semibold">Service unavailable</h1>
+        <p role="alert" className="muted">The server could not be reached. Please try again in a moment.</p>
+        <button className="btn btn-primary w-full py-3" onClick={() => void refreshMe()}>
+          Retry
+        </button>
+      </Centered>
+    );
   }
 
   if (!me) {
@@ -60,14 +97,18 @@ export function AuthGate({ children }: { children: ReactNode }) {
   }
 
   // DPDP Act 2023 Consent Check for Students
-  if (me.role === 'student' && !hasConsent) {
+  if (me.role === 'student' && consented !== me.email && !readConsent(me.email)) {
     const handleConsent = () => {
-      localStorage.setItem('cdac_dpdp_consent', 'true');
-      setHasConsent(true);
+      try {
+        localStorage.setItem(consentKey(me.email), 'true');
+      } catch {
+        // storage unavailable: consent holds for this page view only
+      }
+      setConsented(me.email);
     };
 
     return (
-      <main className="mx-auto mt-12 max-w-lg px-4">
+      <main id="main" className="mx-auto mt-12 max-w-lg px-4">
         <div className="card space-y-4 text-left">
           <div className="flex items-center gap-2 border-b pb-3">
             <svg viewBox="0 0 24 24" className="size-6 text-brand-700" fill="none" stroke="currentColor" strokeWidth="2">
@@ -78,7 +119,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
           <div className="space-y-2 text-sm text-stone-700">
             <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-emerald-900 space-y-1.5">
               <p className="font-semibold flex items-center gap-1.5">
-                <span className="text-base">🔒</span> 100% Anonymous Feedback
+                <span className="text-base" aria-hidden>🔒</span> 100% Anonymous Feedback
               </p>
               <ul className="list-disc pl-5 space-y-1 text-xs sm:text-sm text-emerald-800">
                 <li>Your answers are strictly anonymous — coordinators and faculty cannot see who submitted what.</li>
@@ -100,7 +141,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
             <button className="btn btn-primary flex-1 py-2.5 font-medium" onClick={handleConsent}>
               I Understand & Continue
             </button>
-            <button className="btn px-4" onClick={signOut}>
+            <button className="btn px-4" onClick={() => void signOut()}>
               Sign out
             </button>
           </div>
@@ -114,7 +155,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
 
 function Centered({ children }: { children: ReactNode }) {
   return (
-    <main className="mx-auto mt-16 max-w-sm px-4">
+    <main id="main" className="mx-auto mt-16 max-w-sm px-4">
       <div className="card space-y-4 text-center">{children}</div>
     </main>
   );
@@ -151,7 +192,7 @@ function LoginPage({ onLoginSuccess }: { onLoginSuccess: () => Promise<void> }) 
       <button className="btn btn-primary w-full py-3 text-base" onClick={google}>
         Sign in with Google
       </button>
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p role="alert" className="text-sm text-red-600">{error}</p>}
       {import.meta.env.DEV && (
         <form onSubmit={devLogin} className="space-y-2 border-t pt-4 text-left">
           <label className="label" htmlFor="dev-email">

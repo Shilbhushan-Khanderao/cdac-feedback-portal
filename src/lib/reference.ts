@@ -1,10 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import type { Me } from '../auth';
 import { api } from './api';
-
-// Mirrors can_manage() in SQL. RLS is the real guard; this only trims dropdowns.
-export const canManage = (me: Me, centreId: string, courseId: string) =>
-  me.role === 'admin' || (centreId === me.centre_id && (!me.course_id || courseId === me.course_id));
 
 /** Key for one cohort = batch + centre + course. */
 export const cohortKey = (r: { batch_id: string | null; centre_id: string | null; course_id: string | null }) =>
