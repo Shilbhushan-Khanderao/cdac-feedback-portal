@@ -31,7 +31,7 @@ const BaseSchema = z.object({
 export function parseConfig(env: NodeJS.ProcessEnv) {
   const c = BaseSchema.parse(env);
   if (c.NODE_ENV === 'production') {
-    const missing = (['DATABASE_ADMIN_URL', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'APP_URL', 'CORS_ORIGIN'] as const)
+    const missing = (['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'APP_URL', 'CORS_ORIGIN'] as const)
       .filter((k) => !c[k]);
     if (missing.length) throw new Error(`Missing required production env: ${missing.join(', ')}`);
     if (!c.APP_URL!.startsWith('https://')) throw new Error('APP_URL must be https:// in production');

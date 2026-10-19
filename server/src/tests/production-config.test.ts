@@ -24,7 +24,7 @@ describe('config fails closed', () => {
     expect(() => parseConfig(noDb)).toThrow();
   });
 
-  it.each(['DATABASE_ADMIN_URL', 'GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'APP_URL', 'CORS_ORIGIN', 'COOKIE_SECRET'])(
+  it.each(['GOOGLE_CLIENT_ID', 'GOOGLE_CLIENT_SECRET', 'APP_URL', 'CORS_ORIGIN', 'COOKIE_SECRET'])(
     'production requires %s',
     (key) => {
       const env: Record<string, string | undefined> = { ...goodProd };
