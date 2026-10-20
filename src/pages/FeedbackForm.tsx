@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { api } from '../lib/api';
 import { fmt, friendlyError, sessionStatus } from '../lib/format';
 import type { Question } from '../reports/aggregate';
+import { useMe } from '../auth';
 
 type FeedbackSession = {
   id: string;
@@ -20,11 +21,14 @@ export function FeedbackForm() {
   const { id = '' } = useParams();
   const navigate = useNavigate();
   const queryClient = useQueryClient();
-  const draftKey = `cdac_draft_${id}`;
+  const { email } = useMe();
+  // Scoped per user (VAPT CL-1): an unscoped key let a second student on the same
+  // shared lab PC see the first student's draft comment pre-filled.
+  const draftKey = `cdac_draft_${email.toLowerCase()}_${id}`;
 
   const [answers, setAnswers] = useState<Record<string, string>>(() => {
     try {
-      const saved = localStorage.getItem(`cdac_draft_${id}`);
+      const saved = localStorage.getItem(draftKey);
       return saved ? JSON.parse(saved) : {};
     } catch {
       return {};
