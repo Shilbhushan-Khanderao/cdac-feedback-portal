@@ -11,7 +11,7 @@
 | nginx | TLS :443, redirect :80, SPA | certs from `deploy/nginx/certs/` |
 | backup | cron 02:00, volume `backups_data` | logs to container stdout |
 
-Logs: `$DC logs -f api` (all services use json-file, 10 MB x 5).
+Logs: `$DC logs -f api` (all services use json-file, 50 MB x 100 files = 5 GB/container; still local-host rotation, not durable 180-day retention — see `DEPLOYMENT-CHECKLIST.md`'s Logging section).
 
 ## Deploy / update
 ```bash
@@ -33,7 +33,14 @@ Changing the hostname requires `$DC up -d --build nginx` (the name is baked in a
 - Manual: `$DC exec backup /scripts/backup.sh`
 - List: `$DC exec backup ls -l /backups`
 - Drill (monthly, and before go-live): `$DC exec backup /scripts/restore-test.sh /backups/<file>.sql.gz.enc` creates a scratch DB, restores with `ON_ERROR_STOP`, prints counts for every table (must include `responses`, `submissions`, `audit_logs`), drops the scratch DB.
-- Real restore: stop `api`, decrypt with `openssl enc -d -aes-256-cbc -pbkdf2 -pass env:BACKUP_ENCRYPTION_KEY -in <file> | gunzip | psql ...` into an empty database, start `api`.
+- Real restore: stop `api`. Each dump is encrypt-then-MAC'd — verify the `.hmac` sidecar file **before** decrypting (a tampered/truncated file must fail here, not partway through `openssl enc -d`):
+  ```bash
+  MAC_KEY=$(printf '%s:hmac' "$BACKUP_ENCRYPTION_KEY" | openssl dgst -sha256 | sed 's/^.*= //')
+  openssl dgst -sha256 -hmac "$MAC_KEY" <file>.sql.gz.enc   # compare against <file>.sql.gz.enc.hmac
+  openssl enc -d -aes-256-cbc -pbkdf2 -pass env:BACKUP_ENCRYPTION_KEY -in <file>.sql.gz.enc | gunzip | psql ...
+  ```
+  into an empty database, start `api`. (`restore-test.sh` does both steps correctly already — prefer it over the manual pipe when the scratch-DB drill, not a real restore, is all that's needed.)
+- Backup role: by default `pg_dump` connects as the superuser (`POSTGRES_USER`). An optional least-privilege `BACKUP_DB_ROLE` is documented in `deploy/.env.example` (needs `BYPASSRLS` — a plain `SELECT` grant alone gives an incomplete dump under RLS) and `DEPLOYMENT-CHECKLIST.md`.
 - Keep `BACKUP_ENCRYPTION_KEY` in a separate secure location; without it backups are unreadable.
 - Offsite key: add under the `backup` service `volumes: ["./offsite_key:/run/offsite_key:ro"]` and set `BACKUP_OFFSITE_TARGET`.
 
@@ -42,7 +49,9 @@ Changing the hostname requires `$DC up -d --build nginx` (the name is baked in a
 - Disk: watch `pgdata` and `backups_data` volumes.
 
 ## Capacity
-Start at 4 vCPU / 8 GB. Tune API pool and Postgres `max_connections` from load-test results (`tests/load/`). nginx limits: `/api` 600 req/min per IP (burst 100), `/auth` 60 req/min (burst 30), sized for campus NAT.
+Start at 4 vCPU / 8 GB. Tune API pool and Postgres `max_connections` from load-test results (`npm run test:load`, or `tests/load/load.k6.js`). Two-layer rate limiting, both sized for a campus NAT (many students behind one IP):
+- nginx is a coarse per-IP backstop only — it can't verify the signed session cookie, so it's keyed on IP: `/api` 1500 req/min (burst 100), `/auth` 1200 req/min (burst 300).
+- Fastify (`server/src/index.ts`) does the real fine-grained limiting: it verifies the cookie's signature first, then keys on the session (240 req/min) or falls back to IP (1500 req/min) for unsigned/missing cookies.
 
 ## Secrets rotation
 Edit `deploy/.env`, `$DC up -d`. Rotating `COOKIE_SECRET` logs everyone out. Rotating `APP_DB_PASSWORD` is applied by `migrate` on the next `up`. Do not rotate `BACKUP_ENCRYPTION_KEY` without keeping the old key for existing backups.

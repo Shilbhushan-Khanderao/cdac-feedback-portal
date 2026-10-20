@@ -68,4 +68,4 @@
 - **Mitigations**:
   - Route-level role-based guard middleware checking session role (`student`, `cc`, `admin`).
   - Centre and course scope isolation: CCs can only access batches and sessions for their assigned centre.
-  - **Correction:** there is no pgTAP suite in this repo (left over from a retired Supabase-based version). RLS/role security is covered by 11 vitest tests in `server/src/tests/rls-app-role.test.ts`, part of a 61-test server suite that runs on every push in CI (`.github/workflows/ci.yml`).
+  - **Correction:** there is no pgTAP suite in this repo (left over from a retired Supabase-based version). RLS/role security is covered by 11 vitest tests in `server/src/tests/rls-app-role.test.ts`, part of a 71-test server suite (9 files) that runs on every push in CI (`.github/workflows/ci.yml`).

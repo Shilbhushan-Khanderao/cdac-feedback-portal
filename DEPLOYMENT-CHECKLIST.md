@@ -20,7 +20,8 @@ Hostname placeholder: `feedback.example.in`. Compose file: `deploy/docker-compos
 
 ## Verify
 - [ ] `curl -I http://HOST/` returns 301 to `https://feedback.example.in/`.
-- [ ] `curl -I https://HOST/` shows HSTS, CSP, X-Frame-Options; `/assets/*.js` is `immutable`; `index.html` is `no-cache`.
+- [ ] `curl -I https://HOST/` shows HSTS, CSP, X-Frame-Options; `/assets/*.js` is `immutable`; `index.html` is `no-store` (not `no-cache` — a Back after logout must not replay an authenticated page).
+- [ ] `curl -I https://HOST/favicon.svg` returns `200 image/svg+xml` (confirms `deploy/Dockerfile.web` copied `public/` into the build — it silently served the SPA shell here until that was fixed).
 - [ ] `https://HOST/api/health` returns `{"status":"healthy"}`.
 - [ ] `/auth/dev-login` returns 404.
 - [ ] Google sign-in works for admin, a CC and a student; an unlisted email is rejected.

@@ -3,7 +3,7 @@
 > **Target Platform:** C-DAC Module Feedback Portal  
 > **Auditing Standards:** CERT-In Cyber Security Directions (Sec 70B IT Act 2000), DPDP Act 2023, OWASP Top 10 (2021), GIGW 3.0 (Guidelines for Indian Government Websites) / WCAG 2.1 AA  
 > **Test Suite Execution Date:** October 2026  
-> **Automated Test Execution Status:** Test counts below are verified by direct count against the repo as of 2026-10-20 (61 server-side cases across 8 files, 8 frontend cases; see §4). Pass/fail outcome was not re-run as part of this correction pass — re-run `npm run server:test && npm test` and record the result before citing a pass/fail status to an auditor; both suites run in CI on every push (`.github/workflows/ci.yml`).  
+> **Automated Test Execution Status:** 71 server-side cases across 9 files, 8 frontend cases (see §4). Both suites were re-run against a real Postgres 17 instance on 2026-10-20 after the grievance-officer/consent/audit-coverage changes landed: 71/71 and 8/8 passing. Both suites also run in CI on every push (`.github/workflows/ci.yml`); re-confirm there before citing a pass/fail status to an external auditor, since local and CI Postgres versions can drift.  
 > **Deployment Clearance Status:** **NOT YET CLEARED.** A VAPT simulation on 2026-10-19/20 found one High finding still open (CMP-1: no data-principal access/correction/erasure endpoint beyond a newly added admin-managed grievance contact) and several Medium findings; see `docs/vapt/simulation/00-MASTER-REGISTER.md` for the current open-findings list and what has already been fixed this session. Target: full clearance once CMP-1's export/erasure endpoints ship and the Medium findings are triaged per that register's recommended order of work. The register itself judges the stack usable for a controlled pilot now, short of external CERT-In audit submission.
 
 ---
@@ -83,9 +83,10 @@ npm run server:test
 - `src/tests/vapt-security.test.ts` (16 tests): Unauthenticated access, cookie tampering, session revocation, vertical escalation, horizontal IDOR, cross-cohort isolation, UUID SQLi parameters, 50 KB body limit, and XSS storage.
 - `src/tests/compliance-gov-norms.test.ts` (7 tests): DB response table column schema, DPDP k-anonymity gate, dashboard privacy threshold, anti-ballot stuffing, CERT-In audit log creation on login/logout, audit log table immutability, and air-gap verification (package-dependency check only, see §2.1).
 - `src/tests/rls-app-role.test.ts` (11 tests): `feedback_app` role grants and RLS policy enforcement, including the `audit_logs` append-only trigger.
-- `src/tests/roster-api.test.ts` (6 tests), `src/tests/reference-api.test.ts` (8 tests), `src/tests/sessions-lifecycle.test.ts` (4 tests), `src/tests/production-config.test.ts` (4 tests): route-level and config-boundary coverage added during the RLS/role rework.
+- `src/tests/roster-api.test.ts` (6 tests), `src/tests/reference-api.test.ts` (8 tests, including grievance-officer admin-only CRUD), `src/tests/sessions-lifecycle.test.ts` (4 tests), `src/tests/production-config.test.ts` (9 tests, 4 plain plus an `it.each` over 5 required production env vars): route-level and config-boundary coverage added during the RLS/role rework.
+- `src/tests/consent-and-audit.test.ts` (5 tests): `POST /api/consent` insert-then-upsert and its 401 without a session, an `AUTHZ_DENIED` audit row on a 403, a `BULK_READ` audit row on a PII list read, and confirmation that a non-PII reference-table read does **not** write one.
 
-There is no pgTAP suite and no `schema.sql` in this repo — the migrations are `server/src/db/migrations/001-004_*.sql`, and the tests above are vitest, not pgTAP. (An older Supabase-based version of this project used pgTAP under `supabase/tests`; that directory does not exist on this branch.)
+There is no pgTAP suite and no `schema.sql` in this repo — the migrations are `server/src/db/migrations/001-005_*.sql`, and the tests above are vitest, not pgTAP. (An older Supabase-based version of this project used pgTAP under `supabase/tests`; that directory does not exist on this branch.)
 
 ### 4.2. Frontend & GIGW Compliance Test Suite (8 Tests)
 Run from root:
