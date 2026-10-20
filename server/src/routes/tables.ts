@@ -167,6 +167,13 @@ async function assertCanWrite(
       const dst = await client.query('SELECT public.can_manage($1, $2) AS ok', [centre, course]);
       if (!dst.rows[0]?.ok) throw forbidden('You cannot manage student roster for this cohort');
     }
+  } else if (table === 'staff_roster') {
+    // Independent of STAFF_WRITABLE (VAPT AZ-1): role/centre_id/course_id are the columns a
+    // staff write could use for privilege escalation (self-promotion to admin, or reassigning
+    // oneself to another centre/course). staff_roster isn't in STAFF_WRITABLE today, so this
+    // branch is currently unreachable for non-admins — it stays as a second, independent block
+    // so adding the table there later can't reopen escalation on its own.
+    throw forbidden('Admin access required');
   }
 }
 
