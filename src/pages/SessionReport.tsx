@@ -9,6 +9,7 @@ import { aggregate, toCsv, type Answers, type Question } from '../reports/aggreg
 import { PieChart } from '../reports/PieChart';
 import { CommentAnalysis } from '../reports/CommentAnalysis';
 import { FacultyPicker } from './FacultyPicker';
+import { Clipboard, WhatsappLogo } from '@phosphor-icons/react';
 
 function download(blob: Blob, name: string) {
   const a = document.createElement('a');
@@ -158,7 +159,7 @@ export default function SessionReport() {
 
       <div className="card space-y-3">
         <div className="flex flex-wrap items-center gap-2">
-          <h1 className="text-xl font-semibold">{moduleName}</h1>
+          <h1 className="page-title">{moduleName}</h1>
           <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLE[status]}`}>{status}</span>
         </div>
         <p className="muted">
@@ -186,10 +187,10 @@ export default function SessionReport() {
         )}
         <div className="flex flex-wrap gap-2">
           <button className="btn btn-primary" onClick={copyLink}>
-            <span aria-hidden>📋</span> Copy student link
+            <Clipboard size={16} aria-hidden /> Copy student link
           </button>
           <button className="btn bg-emerald-700 text-white hover:bg-emerald-800 font-medium" onClick={shareLink}>
-            <span aria-hidden>📲</span> Share to WhatsApp
+            <WhatsappLogo size={16} aria-hidden /> Share to WhatsApp
           </button>
           <button className="btn" onClick={downloadPdf} disabled={pdfBusy || report.total === 0}>
             {pdfBusy ? 'Preparing PDF…' : 'Download PDF'}
@@ -265,7 +266,7 @@ export default function SessionReport() {
           </div>
           {report.comments.map((c) => (
             <div key={c.title} className="card">
-              <h2 className="mb-2 font-semibold">{c.title}</h2>
+              <h2 className="card-title mb-2">{c.title}</h2>
               {c.items.length === 0 ? (
                 <p className="muted">No comments recorded for this section.</p>
               ) : (

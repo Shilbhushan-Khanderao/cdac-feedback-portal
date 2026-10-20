@@ -184,7 +184,7 @@ function Filter({ label, value, onChange, options }: { label: string; value: str
 function Panel({ title, sub, empty, emptyText, children }: { title: string; sub?: string; empty?: boolean; emptyText?: string; children: ReactNode }) {
   return (
     <section className="card">
-      <h2 className="font-semibold">{title}</h2>
+      <h2 className="card-title">{title}</h2>
       {sub && <p className="muted mb-3">{sub}</p>}
       {empty ? <p className="muted py-8 text-center">{emptyText ?? 'No data for this selection yet.'}</p> : children}
     </section>

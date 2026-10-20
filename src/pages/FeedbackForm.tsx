@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { fmt, friendlyError, sessionStatus } from '../lib/format';
 import type { Question } from '../reports/aggregate';
 import { useMe } from '../auth';
+import { CheckCircle, Lock } from '@phosphor-icons/react';
 
 type FeedbackSession = {
   id: string;
@@ -120,7 +121,7 @@ export function FeedbackForm() {
           <span className="text-stone-700">
             {answeredRequired === totalRequired ? (
               <span className="text-emerald-700 font-semibold flex items-center gap-1">
-                <span aria-hidden>✓</span> All required questions answered!
+                <CheckCircle size={14} aria-hidden /> All required questions answered!
               </span>
             ) : (
               <span>
@@ -142,9 +143,9 @@ export function FeedbackForm() {
 
       <div className="card space-y-1 bg-stone-50/70">
         <div className="flex items-center justify-between">
-          <h1 className="text-xl font-bold text-stone-900">{data.modules?.name}</h1>
+          <h1 className="page-title">{data.modules?.name}</h1>
           <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 text-emerald-800 px-2 py-0.5 text-xs font-semibold">
-            <span aria-hidden>🔒</span> Anonymous
+            <Lock size={12} aria-hidden /> Anonymous
           </span>
         </div>
         {data.faculty.length > 0 && <p className="text-sm muted">Faculty: {data.faculty.join(', ')}</p>}
@@ -229,14 +230,15 @@ function CelebrationScreen({
       </div>
 
       <div className="space-y-1">
-        <h2 className="text-2xl font-bold text-stone-900">Thank You!</h2>
+        <h2 className="text-2xl font-semibold text-stone-900">Thank You!</h2>
         <p className="text-stone-600">
           Your feedback for <strong className="text-stone-800">{moduleName ?? 'this module'}</strong> has been recorded.
         </p>
       </div>
 
-      <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800">
-        <span aria-hidden>🔒</span> <strong>Anonymity Guaranteed:</strong> Your responses have been detached from your identity and stored securely.
+      <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-xs text-emerald-800 flex items-start gap-1.5">
+        <Lock size={14} className="mt-0.5 shrink-0" aria-hidden />
+        <span><strong>Anonymity Guaranteed:</strong> Your responses have been detached from your identity and stored securely.</span>
       </div>
 
       <button onClick={onDone} className="btn btn-primary w-full py-2.5 font-medium">

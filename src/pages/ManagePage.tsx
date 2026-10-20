@@ -87,7 +87,7 @@ export function ManagePage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-semibold">{me.role === 'admin' ? 'System Setup' : 'Course & Faculty Setup'}</h1>
+      <h1 className="page-title">{me.role === 'admin' ? 'System Setup' : 'Course & Faculty Setup'}</h1>
       <div className="flex flex-wrap gap-1" role="tablist" aria-label="Setup sections">
         {tabs.map((t) => (
           <button

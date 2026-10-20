@@ -61,7 +61,7 @@ export function RosterPage() {
 
   return (
     <div className="space-y-4">
-      <h1 className="text-lg font-semibold">Students</h1>
+      <h1 className="page-title">Students</h1>
       <div className="card space-y-3">
         <CohortPicker value={cohort} onChange={setCohort} />
         {filters && (

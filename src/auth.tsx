@@ -2,6 +2,7 @@ import { createContext, useContext, useEffect, useState, type FormEvent, type Re
 import { useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from './lib/api';
 import { loginError } from './lib/format';
+import { Lock } from '@phosphor-icons/react';
 
 export type Me = {
   email: string;
@@ -128,7 +129,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
   if (unavailable) {
     return (
       <Centered>
-        <h1 className="text-xl font-semibold">Service unavailable</h1>
+        <h1 className="page-title">Service unavailable</h1>
         <p role="alert" className="muted">The server could not be reached. Please try again in a moment.</p>
         <button className="btn btn-primary w-full py-3" onClick={() => void refreshMe()}>
           Retry
@@ -156,12 +157,12 @@ export function AuthGate({ children }: { children: ReactNode }) {
             <svg viewBox="0 0 24 24" className="size-6 text-brand-700" fill="none" stroke="currentColor" strokeWidth="2">
               <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 5-4.03 9-9 9s-9-4-9-9 4.03-9 9-9 9 4 9 9z" />
             </svg>
-            <h1 className="text-lg font-bold">Your Privacy & Feedback</h1>
+            <h1 className="page-title">Your Privacy & Feedback</h1>
           </div>
           <div className="space-y-2 text-sm text-stone-700">
             <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-emerald-900 space-y-1.5">
               <p className="font-semibold flex items-center gap-1.5">
-                <span className="text-base" aria-hidden>🔒</span> 100% Anonymous Feedback
+                <Lock size={16} aria-hidden /> 100% Anonymous Feedback
               </p>
               <ul className="list-disc pl-5 space-y-1 text-xs sm:text-sm text-emerald-800">
                 <li>Your answers are strictly anonymous — coordinators and faculty cannot see who submitted what.</li>
@@ -231,7 +232,7 @@ function LoginPage({ onLoginSuccess }: { onLoginSuccess: () => Promise<void> }) 
 
   return (
     <Centered>
-      <h1 className="text-xl font-semibold">C-DAC Module Feedback</h1>
+      <h1 className="page-title">C-DAC Module Feedback</h1>
       <p className="muted">Sign in with your Google or registered ACTS email.</p>
       <button className="btn btn-primary w-full py-3 text-base" onClick={google}>
         Sign in with Google

@@ -65,7 +65,7 @@ export function CreateSessionForm({ onDone }: Props) {
   return (
     <form onSubmit={onSubmit} className="card space-y-4 border-brand-300 shadow-sm">
       <div className="border-b pb-2">
-        <h2 className="text-base font-semibold text-stone-900">Create Feedback Session</h2>
+        <h2 className="card-title">Create Feedback Session</h2>
         <p className="text-xs text-stone-500">Cohort parameters are pre-filled based on your coordinator profile.</p>
       </div>
 

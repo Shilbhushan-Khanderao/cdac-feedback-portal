@@ -128,7 +128,7 @@ function RouteError() {
   return (
     <main className="mx-auto mt-16 max-w-sm px-4">
       <div className="card space-y-3 text-center" role="alert">
-        <h1 className="text-lg font-semibold">Something went wrong</h1>
+        <h1 className="page-title">Something went wrong</h1>
         <p className="muted">Reload the page. If it keeps happening, contact your coordinator.</p>
         <button className="btn btn-primary" onClick={() => window.location.reload()}>
           Reload
