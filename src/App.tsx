@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { AuthGate, isStaff, signOut, StaffPrivacyNotice, useMe } from './auth';
 import { ApiError } from './lib/api';
+import { BrandLockup } from './components/Logo';
 import { StudentHome } from './pages/StudentHome';
 import { FeedbackForm } from './pages/FeedbackForm';
 
@@ -74,13 +75,7 @@ function Layout() {
       </a>
       <header className="sticky top-0 z-20 border-b border-stone-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
-          <span className="mr-3 flex items-center gap-2 font-semibold tracking-tight">
-            <svg viewBox="0 0 24 24" className="size-7 text-brand-700" aria-hidden fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="18" height="18" rx="5" fill="currentColor" stroke="none" />
-              <path d="M8 13l3 3 5-7" stroke="#fff" />
-            </svg>
-            Module Feedback
-          </span>
+          <BrandLockup className="mr-3" />
           {isStaff(me) && visibleNav.length > 0 && (
             <nav className="order-last flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto" aria-label="Main">
               {visibleNav.map((n) => (

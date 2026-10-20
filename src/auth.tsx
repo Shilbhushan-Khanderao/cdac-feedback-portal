@@ -3,6 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from './lib/api';
 import { loginError } from './lib/format';
 import { Lock } from '@phosphor-icons/react';
+import { BrandLockup } from './components/Logo';
 
 export type Me = {
   email: string;
@@ -232,7 +233,8 @@ function LoginPage({ onLoginSuccess }: { onLoginSuccess: () => Promise<void> }) 
 
   return (
     <Centered>
-      <h1 className="page-title">C-DAC Module Feedback</h1>
+      <h1 className="sr-only">C-DAC Module Feedback Portal</h1>
+      <BrandLockup className="justify-center" />
       <p className="muted">Sign in with your Google or registered ACTS email.</p>
       <button className="btn btn-primary w-full py-3 text-base" onClick={google}>
         Sign in with Google
