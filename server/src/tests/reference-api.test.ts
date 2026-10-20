@@ -187,7 +187,7 @@ describe('Reference Tables & Master Data CRUD Integration Tests', () => {
       method: 'POST',
       url: '/api/reference/tables/grievance_officers',
       headers: { cookie: adminCookie },
-      payload: { full_name: 'Grievance Officer', email, phone: '9999999999' },
+      payload: { full_name: 'Grievance Officer', email },
     });
     expect(createRes.statusCode).toBe(201);
     const created = JSON.parse(createRes.body);

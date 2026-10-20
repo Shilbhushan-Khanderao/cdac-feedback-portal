@@ -79,7 +79,6 @@ export function ManagePage() {
     grievance_officers: [
       { key: 'full_name', label: 'Name', required: true },
       { key: 'email', label: 'Email', required: true },
-      { key: 'phone', label: 'Phone' },
       { key: 'active', label: 'Active', type: 'bool' },
     ],
   };

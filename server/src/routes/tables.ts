@@ -63,8 +63,8 @@ export const TABLE_CONFIGS: Record<string, TableConfig> = {
   },
   grievance_officers: {
     pk: 'id',
-    readableColumns: ['id', 'full_name', 'email', 'phone', 'active'],
-    writableColumns: ['full_name', 'email', 'phone', 'active'],
+    readableColumns: ['id', 'full_name', 'email', 'active'],
+    writableColumns: ['full_name', 'email', 'active'],
     defaultOrder: 'full_name ASC',
   },
 };
