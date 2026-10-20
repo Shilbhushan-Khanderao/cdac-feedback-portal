@@ -12,6 +12,7 @@ const TABS: Tab[] = [
   { id: 'centres', label: 'Centres', adminOnly: true, note: 'ATCs need a parent C-DAC centre.' },
   { id: 'staff_roster', label: 'Staff', adminOnly: true, note: 'CCs see only their centre. Leave Course empty for all courses at that centre. Admins see everything.' },
   { id: 'questions', label: 'Questions', adminOnly: true, note: 'Changes apply to sessions created after the edit. Options are comma separated.' },
+  { id: 'grievance_officers', label: 'Grievance Officer', adminOnly: true, note: 'Person responsible for data-principal/grievance requests under DPDP. Shown to staff; not a login.' },
 ];
 
 export function ManagePage() {
@@ -75,8 +76,14 @@ export function ManagePage() {
       { key: 'options', label: 'Options', type: 'list' },
       { key: 'active', label: 'Active', type: 'bool' },
     ],
+    grievance_officers: [
+      { key: 'full_name', label: 'Name', required: true },
+      { key: 'email', label: 'Email', required: true },
+      { key: 'phone', label: 'Phone' },
+      { key: 'active', label: 'Active', type: 'bool' },
+    ],
   };
-  const order: Record<string, string> = { batches: 'label', modules: 'sort_order', faculty: 'name', courses: 'code', centres: 'name', staff_roster: 'full_name', questions: 'sort_order' };
+  const order: Record<string, string> = { batches: 'label', modules: 'sort_order', faculty: 'name', courses: 'code', centres: 'name', staff_roster: 'full_name', questions: 'sort_order', grievance_officers: 'full_name' };
   const current = tabs.find((t) => t.id === tab) ?? tabs[0];
 
   return (

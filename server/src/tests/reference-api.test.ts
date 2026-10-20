@@ -172,6 +172,42 @@ describe('Reference Tables & Master Data CRUD Integration Tests', () => {
     expect(JSON.parse(deleteRes.body).ok).toBe(true);
   });
 
+  it('5b. Grievance officer (CMP-1): admin-only CRUD, visible to any staff', async () => {
+    const email = `grievance.${Date.now()}@test.local`;
+
+    const ccTry = await app.inject({
+      method: 'POST',
+      url: '/api/reference/tables/grievance_officers',
+      headers: { cookie: ccCookie },
+      payload: { full_name: 'Should Fail', email },
+    });
+    expect(ccTry.statusCode).toBe(403);
+
+    const createRes = await app.inject({
+      method: 'POST',
+      url: '/api/reference/tables/grievance_officers',
+      headers: { cookie: adminCookie },
+      payload: { full_name: 'Grievance Officer', email, phone: '9999999999' },
+    });
+    expect(createRes.statusCode).toBe(201);
+    const created = JSON.parse(createRes.body);
+
+    const readAsCc = await app.inject({
+      method: 'GET',
+      url: '/api/reference/tables/grievance_officers',
+      headers: { cookie: ccCookie },
+    });
+    expect(readAsCc.statusCode).toBe(200);
+    expect(JSON.parse(readAsCc.body).some((r: any) => r.id === created.id)).toBe(true);
+
+    const delRes = await app.inject({
+      method: 'DELETE',
+      url: `/api/reference/tables/grievance_officers/${created.id}`,
+      headers: { cookie: adminCookie },
+    });
+    expect(delRes.statusCode).toBe(200);
+  });
+
   it('6. SQL Injection & Parameter Tampering defense on dynamic table routes', async () => {
     // Malicious table name
     const badTable = await app.inject({

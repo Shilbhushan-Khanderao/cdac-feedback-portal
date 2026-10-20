@@ -61,6 +61,12 @@ export const TABLE_CONFIGS: Record<string, TableConfig> = {
     writableColumns: ['sort_order', 'text', 'kind', 'options', 'active'],
     defaultOrder: 'sort_order ASC',
   },
+  grievance_officers: {
+    pk: 'id',
+    readableColumns: ['id', 'full_name', 'email', 'phone', 'active'],
+    writableColumns: ['full_name', 'email', 'phone', 'active'],
+    defaultOrder: 'full_name ASC',
+  },
 };
 
 const STAFF_WRITABLE = ['faculty', 'student_roster', 'modules'];
