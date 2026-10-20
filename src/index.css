@@ -6,7 +6,9 @@
  * Chart colours live in src/lib/palette.ts (validated for colour-blind safety).
  */
 @theme {
-  --font-sans: "Fira Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  /* System font stack only: no "Fira Sans" claim (never loaded, was silently falling
+     back to this same stack) and no external font CDN, matching the air-gap goal. */
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
 
   --color-brand-50: #f0faf4;
   --color-brand-100: #d8f1e2;
@@ -41,5 +43,6 @@
   .muted { @apply text-sm text-stone-500; }
   .page-title { @apply text-xl font-semibold tracking-tight text-stone-900; }
   .section-title { @apply text-sm font-semibold uppercase tracking-wide text-stone-500; }
+  .card-title { @apply text-sm font-semibold text-stone-900; }
   .num { font-variant-numeric: tabular-nums; }
 }
