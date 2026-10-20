@@ -220,7 +220,16 @@ export const tablesRoutes: FastifyPluginAsync = async (app) => {
                  ${orderByClause} LIMIT $${values.length - 1} OFFSET $${values.length}`;
 
     try {
-      return await withUser(req.user!.email, async (client) => (await client.query(sql, values)).rows);
+      return await withUser(req.user!.email, async (client) => {
+        const rows = (await client.query(sql, values)).rows;
+        // CMP-6: bulk PII reads get a light trail (action + table + actor + count), not a
+        // row dump. Reference tables (batches, courses, ...) are deliberately left out here —
+        // they carry no personal data, and auditing every GET on them would just be noise.
+        if (table === 'student_roster' || table === 'staff_roster') {
+          await audit({ actor: req.user!.email, action: 'BULK_READ', entityType: table, details: { count: rows.length }, ip: req.ip }, client);
+        }
+        return rows;
+      });
     } catch (err) {
       throw mapDbError(err);
     }

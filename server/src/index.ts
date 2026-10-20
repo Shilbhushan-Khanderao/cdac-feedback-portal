@@ -12,8 +12,10 @@ import { feedbackRoutes } from './routes/feedback.js';
 import { reportRoutes } from './routes/reports.js';
 import { rosterRoutes } from './routes/roster.js';
 import { tablesRoutes } from './routes/tables.js';
+import { consentRoutes } from './routes/consent.js';
 import { purgeExpiredSessions } from './auth/session.js';
 import { AppError } from './lib/errors.js';
+import { audit } from './lib/audit.js';
 
 const SESSION_COOKIE = 'cdac_session';
 
@@ -23,6 +25,23 @@ export function buildApp() {
       level: config.NODE_ENV === 'production' ? 'info' : 'debug',
       // Redact sensitive headers and bodies
       redact: ['req.headers.authorization', 'req.headers.cookie'],
+      serializers: {
+        // INF-4: the OAuth callback's query string (?code=...&state=...) must never land in
+        // logs verbatim. The code is single-use/short-lived/PKCE-bound, but a log line is
+        // forever and the raw request line was showing up unredacted. Same shape Fastify's
+        // own default req serializer uses, just with the query string stripped for this one
+        // path; every other route logs exactly as before.
+        req(req) {
+          const url = req.url && req.url.startsWith('/auth/google/callback') ? req.url.split('?')[0] : req.url;
+          return {
+            method: req.method,
+            url,
+            host: req.host,
+            remoteAddress: req.ip,
+            remotePort: req.socket ? req.socket.remotePort : undefined,
+          };
+        },
+      },
     },
     // Trust X-Forwarded-For only from the nginx hop (loopback / private docker network),
     // never from arbitrary peers. nginx sets XFF to $remote_addr, so req.ip is the real client.
@@ -38,6 +57,18 @@ export function buildApp() {
   app.setErrorHandler((err, req, reply) => {
     req.log.warn({ err }, 'Request failed with error');
     if (err instanceof AppError) {
+      // CMP-6: authz failures are audited once, here, instead of at every forbidden() call
+      // site in sessions/tables/roster (the only routes that throw one). Fire-and-forget so a
+      // logging hiccup never delays or masks the error response itself.
+      if (err.statusCode === 403) {
+        void audit({
+          actor: req.user?.email ?? null,
+          action: 'AUTHZ_DENIED',
+          entityType: 'http',
+          details: { method: req.method, url: req.url.split('?')[0], message: err.message },
+          ip: req.ip,
+        }).catch(() => {});
+      }
       return reply.status(err.statusCode).send({ error: err.message, code: err.code });
     }
     const statusCode = (err as any).statusCode || (err as any).status || 500;
@@ -143,6 +174,7 @@ export function buildApp() {
   app.register(feedbackRoutes, { prefix: '/api/feedback' });
   app.register(reportRoutes, { prefix: '/api/reports' });
   app.register(rosterRoutes, { prefix: '/api/roster' });
+  app.register(consentRoutes, { prefix: '/api/consent' });
 
   return app;
 }

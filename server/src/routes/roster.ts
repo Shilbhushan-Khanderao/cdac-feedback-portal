@@ -99,7 +99,10 @@ export const rosterRoutes: FastifyPluginAsync = async (app) => {
           inserted++;
         }
 
-        await audit({ actor: req.user!.email, action: 'ROSTER_UPLOAD', entityType: 'student_roster', details: { count: inserted }, ip: req.ip }, client);
+        // CMP-6: record which emails were touched (and the row count) so a cohort move or
+        // PII overwrite can be reconstructed later; emails already flow through this route's
+        // own logs/payload, so listing them here isn't a new PII exposure.
+        await audit({ actor: req.user!.email, action: 'ROSTER_UPLOAD', entityType: 'student_roster', details: { count: inserted, emails }, ip: req.ip }, client);
         return inserted;
       });
 
