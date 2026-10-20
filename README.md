@@ -14,26 +14,28 @@ browser --443--> nginx (TLS, static SPA, rate limits) --> api (Fastify, :3000) -
 - The API connects as the non-superuser role `feedback_app`; Postgres RLS is the authorisation boundary.
 - Anonymity rules are in [CLAUDE.md](CLAUDE.md).
 
-## Local development
+## Local development & deployment
+
+Full step-by-step guide, including local Postgres setup, running the dev servers, and the
+campus deployment walkthrough: **[GETTING-STARTED.md](GETTING-STARTED.md)**.
+
+Quick reference, once set up:
 
 ```bash
-npm ci
-# start a local Postgres 16, create a database, then in server/.env set DATABASE_URL, COOKIE_SECRET (see deploy/.env.example)
 npm run server:dev     # API on :3000
 npm run dev            # SPA on :5173
 npx tsc -b && npm test && npm run server:test
 ```
 
-## Deploy (campus host)
-
 ```bash
-cp deploy/.env.example deploy/.env      # fill every value
-cp fullchain.pem privkey.pem deploy/nginx/certs/
-docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build
-docker compose --env-file deploy/.env -f deploy/docker-compose.yml run --rm api node dist/db/bootstrap-admin.js admin@example.in "Admin Name"
+DC="docker compose --env-file deploy/.env -f deploy/docker-compose.yml"
+$DC up -d --build
+$DC run --rm api node dist/db/bootstrap-admin.js admin@example.in "Admin Name"
 ```
 
-`migrate` runs automatically before `api`. Full procedure: [DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md) and [docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md](docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md).
+`migrate` runs automatically before `api`. Checklist form for a live cutover:
+[DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md); day-2 operations:
+[docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md](docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md).
 
 ## CI
 
