@@ -24,7 +24,9 @@ Three of eight domain-assignments were declined by the subagent running them, ci
 
 Verified end to end on the full local stack after all four agents landed: `POST /api/consent` round-trips 200→200 (upsert)→401 through nginx; `no-store` and deduplicated headers confirmed on 4 location types; OAuth `code` absent from nginx's access log; `limit_conn` present and `nginx -t` clean; a real backup→HMAC-tamper→fail-closed→restore→pass cycle; `/auth/dev-login` still 404 under `NODE_ENV=production` (one false alarm during testing traced to a test-script shell-env leak, not an app bug — see commit `8bc3772`'s verification notes). Server suite 71/71, frontend 8/8, both clean builds.
 
-Open from the original five-domain run, not yet touched: the DPDP section-number mapping in `AUDIT-REPORT.md` (flagged as unverified against the Act text, not asserted); folding `docs/vapt/RESIDUAL-RISKS.md` back into the main checklist once it stops being a moving target.
+`docs/vapt/RESIDUAL-RISKS.md` has been folded back into `DEPLOYMENT-CHECKLIST.md` and `AUDIT-REPORT.md`/`SECURITY-CONTROLS-MATRIX.md` (both updated to reflect the landed HMAC and `BACKUP_DB_ROLE` fixes) and deleted.
+
+Open from the original five-domain run, not yet touched: the DPDP section-number mapping in `AUDIT-REPORT.md` (flagged as unverified against the Act text, not asserted).
 
 ## Fixed after this run (same conversation, follow-up work)
 
