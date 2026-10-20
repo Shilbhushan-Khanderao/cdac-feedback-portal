@@ -174,6 +174,12 @@ export const api = {
         body: JSON.stringify({ email }),
       }),
   },
+  consent: {
+    // Defense-in-depth server-side record alongside the localStorage consent
+    // flag; cookie-auth, no body. Best-effort: callers must not block the UI
+    // on this or treat its failure as fatal.
+    accept: () => request<{ ok: boolean }>('/api/consent', { method: 'POST' }),
+  },
   reference: {
     batches: () => request<Batch[]>('/api/reference/batches'),
     centres: () => request<Centre[]>('/api/reference/centres'),

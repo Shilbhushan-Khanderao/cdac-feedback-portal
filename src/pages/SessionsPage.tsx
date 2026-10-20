@@ -42,6 +42,7 @@ export function SessionsPage() {
 
   return (
     <div className="space-y-4">
+      <h1 className="page-title">Sessions</h1>
       <div className="flex flex-wrap items-center gap-2">
         <select className="input w-auto" aria-label="Filter by batch" value={batchFilter} onChange={(e) => setBatchFilter(e.target.value)}>
           <option value="">All batches</option>
@@ -91,7 +92,7 @@ export function SessionsPage() {
               <button className="btn btn-primary text-xs py-2 px-3 whitespace-nowrap" onClick={copyCreatedLink}>
                 📋 Copy Link
               </button>
-              <button className="btn text-xs py-2 px-3 whitespace-nowrap bg-emerald-600 text-white hover:bg-emerald-700" onClick={shareCreatedLink}>
+              <button className="btn text-xs py-2 px-3 whitespace-nowrap bg-emerald-700 text-white hover:bg-emerald-800" onClick={shareCreatedLink}>
                 📲 Share to WhatsApp
               </button>
             </div>

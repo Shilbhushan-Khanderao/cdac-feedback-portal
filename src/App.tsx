@@ -1,8 +1,8 @@
-import { lazy, Suspense, type ReactNode } from 'react';
-import { createHashRouter, Navigate, NavLink, Outlet, RouterProvider, useRouteError } from 'react-router';
+import { lazy, Suspense, useEffect, type ReactNode } from 'react';
+import { createHashRouter, Navigate, NavLink, Outlet, RouterProvider, useLocation, useRouteError } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
-import { AuthGate, isStaff, signOut, useMe } from './auth';
+import { AuthGate, isStaff, signOut, StaffPrivacyNotice, useMe } from './auth';
 import { ApiError } from './lib/api';
 import { StudentHome } from './pages/StudentHome';
 import { FeedbackForm } from './pages/FeedbackForm';
@@ -28,6 +28,25 @@ const NAV: NavItem[] = [
   { to: '/manage', label: 'Setup', roles: ['cc', 'admin'] },
 ];
 
+// CL-7: hash router never updates document.title, so every route showed the
+// same static title. Checked most-specific prefix first.
+const ROUTE_TITLES: Array<[string, string]> = [
+  ['/sessions/', 'Session report'],
+  ['/feedback/', 'Submit feedback'],
+  ['/sessions', 'Sessions'],
+  ['/roster', 'Students'],
+  ['/manage', 'Setup'],
+  ['/', 'Dashboard'],
+];
+
+function useRouteTitle() {
+  const { pathname } = useLocation();
+  useEffect(() => {
+    const title = ROUTE_TITLES.find(([prefix]) => pathname.startsWith(prefix))?.[1] ?? 'Dashboard';
+    document.title = `${title} · C-DAC Module Feedback`;
+  }, [pathname]);
+}
+
 function RoleRoute({
   allowedRoles,
   children,
@@ -44,6 +63,7 @@ function RoleRoute({
 
 function Layout() {
   const me = useMe();
+  useRouteTitle();
   const visibleNav = NAV.filter((n) => n.roles.includes(me.role));
   const link = ({ isActive }: { isActive: boolean }) =>
     `rounded-md px-3 py-2 text-sm transition-colors duration-150 ${isActive ? 'bg-brand-50 font-semibold text-brand-800' : 'text-stone-600 hover:bg-stone-100 hover:text-stone-900'}`;
@@ -82,11 +102,18 @@ function Layout() {
           </button>
         </div>
       </header>
+      <StaffPrivacyNotice />
       <main id="main" tabIndex={-1} className="mx-auto max-w-6xl px-4 py-6 outline-none">
         <Suspense fallback={<p className="muted" role="status">Loading…</p>}>
           <Outlet />
         </Suspense>
       </main>
+      <footer className="border-t border-stone-200 px-4 py-4 text-xs text-stone-500">
+        <div className="mx-auto max-w-6xl">
+          C-DAC Module Feedback Portal · Feedback data is processed under the DPDP Act 2023 notice shown at
+          sign-in · Built to WCAG 2.1 AA accessibility guidelines — report issues to your course coordinator.
+        </div>
+      </footer>
     </>
   );
 }

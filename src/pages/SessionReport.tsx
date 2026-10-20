@@ -188,7 +188,7 @@ export default function SessionReport() {
           <button className="btn btn-primary" onClick={copyLink}>
             <span aria-hidden>📋</span> Copy student link
           </button>
-          <button className="btn bg-emerald-600 text-white hover:bg-emerald-700 font-medium" onClick={shareLink}>
+          <button className="btn bg-emerald-700 text-white hover:bg-emerald-800 font-medium" onClick={shareLink}>
             <span aria-hidden>📲</span> Share to WhatsApp
           </button>
           <button className="btn" onClick={downloadPdf} disabled={pdfBusy || report.total === 0}>

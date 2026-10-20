@@ -188,7 +188,7 @@ export function FeedbackForm() {
           >
             <label htmlFor={q.id} className="mb-2 block font-medium text-stone-900">
               <span className="text-brand-700 font-semibold mr-1">{i + 1}.</span> {q.text}{' '}
-              <span className="text-xs text-stone-400 font-normal">(optional)</span>
+              <span className="text-xs text-stone-600 font-normal">(optional)</span>
             </label>
             <textarea
               id={q.id}

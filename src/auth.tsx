@@ -1,7 +1,7 @@
 import { createContext, useContext, useEffect, useState, type FormEvent, type ReactNode } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { api, ApiError } from './lib/api';
-import { friendlyError } from './lib/format';
+import { loginError } from './lib/format';
 
 export type Me = {
   email: string;
@@ -39,15 +39,60 @@ export async function signOut() {
   }
 }
 
-// ponytail: consent is per browser and user; a server-side record is still to do.
+// Consent is recorded per browser/user in localStorage; api.consent.accept()
+// below is a best-effort server-side record alongside it (defense-in-depth).
 const consentKey = (email: string) => `cdac_dpdp_consent_${email.toLowerCase()}`;
-const readConsent = (email: string) => {
+const staffNoticeKey = (email: string) => `cdac_dpdp_notice_seen_${email.toLowerCase()}`;
+const readFlag = (key: string) => {
   try {
-    return localStorage.getItem(consentKey(email)) === 'true';
+    return localStorage.getItem(key) === 'true';
   } catch {
     return false;
   }
 };
+const writeFlag = (key: string) => {
+  try {
+    localStorage.setItem(key, 'true');
+  } catch {
+    // storage unavailable: flag holds for this page view only
+  }
+};
+const readConsent = (email: string) => readFlag(consentKey(email));
+
+/** Fire-and-forget: never blocks the UI, never treated as fatal. */
+function recordConsent() {
+  void api.consent.accept().catch(() => {
+    // best-effort defense-in-depth; the localStorage flag is the source of truth
+  });
+}
+
+/** One-time, dismissible privacy FYI for staff (CC/admin), who get no consent gate. */
+export function StaffPrivacyNotice() {
+  const me = useMe();
+  const [dismissed, setDismissed] = useState(() => readFlag(staffNoticeKey(me.email)));
+  if (!isStaff(me) || dismissed) return null;
+
+  const dismiss = () => {
+    writeFlag(staffNoticeKey(me.email));
+    recordConsent();
+    setDismissed(true);
+  };
+
+  return (
+    <div className="mx-auto max-w-6xl px-4 pt-2">
+      <div role="status" className="card flex flex-wrap items-start gap-3 border-brand-200 bg-brand-50 p-3 text-sm text-stone-700">
+        <p className="flex-1">
+          <strong>Privacy notice:</strong> your name, email, IP address and actions on this portal are logged for
+          security and audit purposes. Sign-in uses Google Sign-In (we request only your email). This is the same
+          DPDP Act 2023 notice shown to students at sign-in.
+        </p>
+        <button className="btn px-3 py-1 text-xs" onClick={dismiss}>
+          Got it
+        </button>
+      </div>
+    </div>
+  );
+}
 
 /** Renders children only for a signed-in user who is on a roster. */
 export function AuthGate({ children }: { children: ReactNode }) {
@@ -99,11 +144,8 @@ export function AuthGate({ children }: { children: ReactNode }) {
   // DPDP Act 2023 Consent Check for Students
   if (me.role === 'student' && consented !== me.email && !readConsent(me.email)) {
     const handleConsent = () => {
-      try {
-        localStorage.setItem(consentKey(me.email), 'true');
-      } catch {
-        // storage unavailable: consent holds for this page view only
-      }
+      writeFlag(consentKey(me.email));
+      recordConsent();
       setConsented(me.email);
     };
 
@@ -124,7 +166,7 @@ export function AuthGate({ children }: { children: ReactNode }) {
               <ul className="list-disc pl-5 space-y-1 text-xs sm:text-sm text-emerald-800">
                 <li>Your answers are strictly anonymous — coordinators and faculty cannot see who submitted what.</li>
                 <li>Reports only unlock when at least 3 students have submitted.</li>
-                <li>All data is hosted securely on C-DAC campus servers in India.</li>
+                <li>Feedback answers are stored on C-DAC campus servers in India.</li>
               </ul>
             </div>
             <details className="text-xs text-stone-500 pt-1 cursor-pointer">
@@ -133,7 +175,9 @@ export function AuthGate({ children }: { children: ReactNode }) {
                 <p>In accordance with the <strong>Digital Personal Data Protection (DPDP) Act 2023</strong>:</p>
                 <p>• Data is processed solely for academic quality monitoring and faculty appraisal within C-DAC.</p>
                 <p>• Response records are de-identified at the database layer with no link to your student identity or timestamps.</p>
-                <p>• Sovereign hosting: No third-party analytics or external CDNs are utilized.</p>
+                <p>• Signing in uses Google Sign-In, which requests only your email address; your email is processed by Google as part of login.</p>
+                <p>• Course coordinators may choose to share the anonymous feedback link for a session via WhatsApp, a third-party service, when inviting your batch.</p>
+                <p>• No third-party analytics or ad trackers are used. Google Sign-In and WhatsApp sharing (above) are the only other services involved.</p>
               </div>
             </details>
           </div>
@@ -164,7 +208,7 @@ function Centered({ children }: { children: ReactNode }) {
 function LoginPage({ onLoginSuccess }: { onLoginSuccess: () => Promise<void> }) {
   const [error, setError] = useState<string | null>(() => {
     const fromUrl = new URLSearchParams(location.search).get('error_description');
-    return fromUrl && friendlyError(fromUrl);
+    return fromUrl ? loginError(fromUrl) : null;
   });
 
   const google = () => {

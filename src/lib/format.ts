@@ -30,6 +30,23 @@ export function friendlyError(message: string): string {
   return message;
 }
 
+// Fixed set of messages the server's OAuth callback actually redirects with
+// (server/src/auth/routes.ts). `?error_description=` is attacker-controllable
+// (a crafted link), so anything outside this exact allowlist must never reach
+// the DOM as free text — fall back to one generic message instead (CL-4).
+const LOGIN_ERRORS: Record<string, string> = {
+  'Sign in failed. Please try again.': 'Sign-in failed. Please try again.',
+  'Sign in failed': 'Sign-in failed. Please try again.',
+  'Your Google email address is not verified.': 'Your Google account email is not verified. Verify it with Google and try again.',
+  'Your email is not on the feedback roster. Contact your course coordinator.': 'Your email is not on the feedback roster. Contact your course coordinator.',
+};
+const GENERIC_LOGIN_ERROR = 'Sign-in failed. Please try again.';
+
+/** Map a raw `error_description` query param to a fixed, known-safe message. */
+export function loginError(raw: string): string {
+  return LOGIN_ERRORS[raw] ?? GENERIC_LOGIN_ERROR;
+}
+
 /** Copy a student feedback link to the clipboard. */
 export async function copyFeedbackLink(url: string) {
   await navigator.clipboard.writeText(url);
