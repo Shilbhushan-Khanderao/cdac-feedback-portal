@@ -4,6 +4,28 @@ Run: 2026-10-19/20, disposable local staging stack (WSL2 Docker, `deploy/docker-
 
 Three of eight domain-assignments were declined by the subagent running them, citing the active-testing framing, even though this was the user's own authorised disposable stack. I ran those checks myself directly against `localhost`. See the "Method note" in each affected report.
 
+## Fixed after this run, round 2 (parallel domain agents: server, infra, frontend, docs)
+
+| ID | Fix |
+|---|---|
+| CMP-6 | Audit coverage: `AUTHZ_DENIED` on every 403 (shared error handler), `BULK_READ` on `student_roster`/`staff_roster` list reads, roster-upsert audit now logs the email list. Reference-table reads left unaudited on purpose (noise). |
+| INF-4 | OAuth `code`/`state` stripped from both the Fastify request log and nginx's own access log for `/auth/` paths. |
+| CMP-4 | `POST /api/consent` (any authenticated role), server-side record backing the existing localStorage flag. Staff now get a one-time dismissible notice too (previously only students had any notice at all). |
+| INF-3 | Backup can run as a least-privilege `BACKUP_DB_ROLE` instead of the superuser (documented GRANT, including `BYPASSRLS` which a plain SELECT grant alone doesn't cover). Added encrypt-then-MAC (HMAC-SHA256) since AES-256-GCM isn't reachable through `openssl enc` on this stack; a tampered backup now fails restore closed before decryption. |
+| CL-5, INF-8, INF-9 | `no-store` on the HTML shell; security headers deduplicated into one included nginx snippet (closes the `/assets`/`/healthz` missing-header gap); `limit_conn` added as a connection-exhaustion backstop. |
+| CMP-7 | Log rotation sized up with the math shown in a compose comment; durable 180-day retention still needs off-host log shipping (not yet scheduled, documented as such). |
+| INF-6, INF-10 | Documented as accepted risk for a single-host Compose deployment (plain env-var secrets, no inter-container TLS) rather than built — would need a secrets manager or a non-colocated DB to change that calculus. |
+| CL-4 | Login error text now allowlists the 4 exact strings the server can send; any other `error_description` (a crafted link) falls back to a generic message. |
+| CL-6, CMP-5 | Consent notice no longer claims zero external dependency; now names Google OAuth's scope and WhatsApp sharing explicitly. |
+| CL-7 | Both named contrast failures fixed, Sessions page heading added, per-route `document.title`, footer line added. |
+| CMP-10 | `docs/vapt/*` corrected against the actual current repo (not the pre-fix snapshot): verdict flipped to "NOT YET CLEARED"; PKCE/state, the live roster role re-check, and the audit log's controlled retention exception confirmed and marked done; fictional claims (pgAudit, 47 pgTAP tests, `@fontsource/inter`, wrong rate-limit numbers, a stale Supabase instruction) removed; test counts recounted directly from each file's `describe`/`it` blocks; anonymity claim rewritten as app-layer-true/storage-layer-target. |
+| CMP-8 | Named Security Incident Owner placeholder added to `INCIDENT-RESPONSE.md`, explicitly distinct from the DPDP grievance officer. |
+| CMP-9 | Adult-cohort (18+) assumption documented; no age assurance implemented, flagged for CDAC to confirm. |
+
+Verified end to end on the full local stack after all four agents landed: `POST /api/consent` round-trips 200→200 (upsert)→401 through nginx; `no-store` and deduplicated headers confirmed on 4 location types; OAuth `code` absent from nginx's access log; `limit_conn` present and `nginx -t` clean; a real backup→HMAC-tamper→fail-closed→restore→pass cycle; `/auth/dev-login` still 404 under `NODE_ENV=production` (one false alarm during testing traced to a test-script shell-env leak, not an app bug — see commit `8bc3772`'s verification notes). Server suite 71/71, frontend 8/8, both clean builds.
+
+Open from the original five-domain run, not yet touched: the DPDP section-number mapping in `AUDIT-REPORT.md` (flagged as unverified against the Act text, not asserted); folding `docs/vapt/RESIDUAL-RISKS.md` back into the main checklist once it stops being a moving target.
+
 ## Fixed after this run (same conversation, follow-up work)
 
 | ID | Fix |
