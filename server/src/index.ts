@@ -87,7 +87,9 @@ export function buildApp() {
         cb(null, true);
         return;
       }
-      cb(new Error('CORS disallowed'), false);
+      const err = new Error('Cross-origin request blocked') as Error & { statusCode: number };
+      err.statusCode = 403;
+      cb(err, false);
     },
     credentials: true,
   });
