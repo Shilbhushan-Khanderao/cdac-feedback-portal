@@ -6,6 +6,7 @@ import { api } from '../lib/api';
 import { copyFeedbackLink, fmt, shareFeedbackLink, sessionStatus, STATUS_STYLE } from '../lib/format';
 import { cohortKey, useBatches, useCohortSizes, useCourses } from '../lib/reference';
 import { CreateSessionForm } from './sessions/CreateSessionForm';
+import { ArrowRight, Clipboard, Confetti, Warning, WhatsappLogo, X } from '@phosphor-icons/react';
 
 export function SessionsPage() {
   const [batchFilter, setBatchFilter] = useState('');
@@ -71,15 +72,15 @@ export function SessionsPage() {
           <div className="flex items-start justify-between">
             <div className="space-y-1">
               <div className="flex items-center gap-2 font-bold text-stone-900">
-                <span className="text-xl">🎉</span>
+                <Confetti size={20} aria-hidden />
                 <span>Session Created: {createdSession.moduleName ?? 'Module'}</span>
               </div>
               <p className="text-xs text-stone-600">
                 Share this direct anonymous link with your students on WhatsApp or Slack:
               </p>
             </div>
-            <button onClick={() => setCreatedSession(null)} className="text-stone-400 hover:text-stone-600 font-bold p-1">
-              ✕
+            <button onClick={() => setCreatedSession(null)} aria-label="Dismiss" className="text-stone-400 hover:text-stone-600 p-1">
+              <X size={16} aria-hidden />
             </button>
           </div>
           <div className="flex flex-col sm:flex-row items-center gap-2">
@@ -90,16 +91,16 @@ export function SessionsPage() {
             />
             <div className="flex gap-2 w-full sm:w-auto">
               <button className="btn btn-primary text-xs py-2 px-3 whitespace-nowrap" onClick={copyCreatedLink}>
-                📋 Copy Link
+                <Clipboard size={14} aria-hidden /> Copy Link
               </button>
               <button className="btn text-xs py-2 px-3 whitespace-nowrap bg-emerald-700 text-white hover:bg-emerald-800" onClick={shareCreatedLink}>
-                📲 Share to WhatsApp
+                <WhatsappLogo size={14} aria-hidden /> Share to WhatsApp
               </button>
             </div>
           </div>
           <div className="flex justify-between items-center pt-1 border-t border-emerald-200/50 text-xs">
-            <Link to={`/sessions/${createdSession.id}`} className="text-brand-700 font-semibold hover:underline">
-              View Session Page & Roster →
+            <Link to={`/sessions/${createdSession.id}`} className="inline-flex items-center gap-1 text-brand-700 font-semibold hover:underline">
+              View Session Page & Roster <ArrowRight size={12} aria-hidden />
             </Link>
             <button onClick={() => setCreatedSession(null)} className="text-stone-500 hover:text-stone-700">
               Dismiss
@@ -112,7 +113,7 @@ export function SessionsPage() {
       {attention.length > 0 && (
         <div className="rounded-lg border border-amber-300 bg-amber-50/70 p-3 text-xs text-amber-900 space-y-1.5">
           <div className="font-semibold flex items-center gap-1.5 text-sm">
-            <span>⚠️</span> {attention.length} open session{attention.length > 1 ? 's need' : ' needs'} more responses (&lt;50% turn out)
+            <Warning size={16} aria-hidden /> {attention.length} open session{attention.length > 1 ? 's need' : ' needs'} more responses (&lt;50% turn out)
           </div>
           <div className="flex flex-wrap gap-2 pt-1">
             {attention.map((s) => (
@@ -121,7 +122,7 @@ export function SessionsPage() {
                 to={`/sessions/${s.id}`}
                 className="inline-flex items-center gap-1 rounded bg-white px-2 py-1 border border-amber-200 font-medium text-amber-900 hover:bg-amber-100 transition"
               >
-                {s.modules?.name}: {s.submissions?.length ?? 0} / {sizes.data?.get(cohortKey(s)) ?? 0} submitted →
+                {s.modules?.name}: {s.submissions?.length ?? 0} / {sizes.data?.get(cohortKey(s)) ?? 0} submitted <ArrowRight size={12} aria-hidden />
               </Link>
             ))}
           </div>
