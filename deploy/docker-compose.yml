@@ -4,8 +4,17 @@
 name: cdac-feedback
 
 x-logging: &logging
+  # CMP-7: CERT-In expects ICT logs retained 180 days. Sizing math (campus feedback portal,
+  # generous upper bound): ~1 req/sec sustained over 12 active h/day = ~43k req/day; nginx's
+  # JSON access-log line (~250B) + the API's pino JSON line(s) per request (~350B) run to
+  # roughly 25-30MB/day each for the two request-handling containers. 180 days * ~30MB/day
+  # ~= 5.4GB, so 5GB/container (50m x 100) covers that with margin; db/migrate/backup log far
+  # less and get the same generous cap for free (disk is cheap, one shared anchor is simpler
+  # than per-service tuning). This is still local rotation, not durable retention -- see
+  # DEPLOYMENT-CHECKLIST.md's logging note: it only lasts as long as this host's disk does,
+  # and a host rebuild loses it. True 180-day durability needs shipping logs off this host.
   driver: json-file
-  options: { max-size: "10m", max-file: "5" }
+  options: { max-size: "50m", max-file: "100" }
 
 x-api-env: &api-env
   NODE_ENV: ${NODE_ENV:-production}
@@ -120,6 +129,10 @@ services:
       PGUSER: ${POSTGRES_USER:?}
       PGPASSWORD: ${POSTGRES_PASSWORD:?}
       PGDATABASE: ${POSTGRES_DB:?}
+      # Optional least-privilege backup role (INF-3); backup.sh falls back to PGUSER/PGPASSWORD
+      # above when unset, so this is safe to leave empty until a DBA grants the role.
+      BACKUP_DB_ROLE: ${BACKUP_DB_ROLE:-}
+      BACKUP_DB_PASSWORD: ${BACKUP_DB_PASSWORD:-}
       BACKUP_ENCRYPTION_KEY: ${BACKUP_ENCRYPTION_KEY:?set BACKUP_ENCRYPTION_KEY in deploy/.env}
       BACKUP_OFFSITE_TARGET: ${BACKUP_OFFSITE_TARGET:-}
       BACKUP_OFFSITE_SSH_KEY: ${BACKUP_OFFSITE_SSH_KEY:-/run/offsite_key}

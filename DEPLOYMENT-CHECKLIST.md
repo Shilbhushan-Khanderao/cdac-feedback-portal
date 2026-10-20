@@ -10,6 +10,7 @@ Hostname placeholder: `feedback.example.in`. Compose file: `deploy/docker-compos
 - [ ] Google OAuth client created; redirect URI = `${APP_URL}/auth/google/callback` (confirm exact path in `server/src/auth/routes.ts`); host can reach Google endpoints.
 - [ ] `cp deploy/.env.example deploy/.env`; fill every value (`openssl rand -hex 32` for secrets). `docker compose config` fails if any is missing.
 - [ ] Offsite backup target decided (`BACKUP_OFFSITE_TARGET`) and ssh key mounted into the backup service.
+- [ ] (Recommended, not required) DBA grants a least-privilege backup role so `pg_dump` stops running as the superuser: see the `BACKUP_DB_ROLE` comment in `deploy/.env.example` for the exact `GRANT`. Until this is done, backups keep running as `POSTGRES_USER` — nothing breaks either way.
 
 ## Deploy
 - [ ] `$DC up -d --build` (builds API + SPA/nginx; `migrate` runs once before `api`).
@@ -32,3 +33,34 @@ Hostname placeholder: `feedback.example.in`. Compose file: `deploy/docker-compos
 - [ ] Real roster uploaded; test accounts absent.
 - [ ] VAPT findings High/Critical closed, or residual risk signed off in writing.
 - [ ] Incident contact and backup owner named in `docs/vapt/INCIDENT-RESPONSE.md`.
+
+## Accepted risk (single-host Compose, no secrets manager)
+This deployment is one Docker Compose stack on one host. Two VAPT findings are
+architecturally out of scope for that shape and are accepted as-is rather than solved with
+machinery nobody asked for:
+
+- **INF-6 (secrets as plain env vars)** — `COOKIE_SECRET`, `DATABASE_URL`, `POSTGRES_PASSWORD`,
+  `BACKUP_ENCRYPTION_KEY`, `GOOGLE_CLIENT_SECRET` are visible via `docker inspect` and
+  `/proc/1/environ` to anyone who already has host root or `docker` group membership. Docker
+  Compose has no secrets store of its own (`secrets:` in the plain `docker-compose.yml` file
+  format still writes to a tmpfs file readable the same way, not an actual vault) — real secret
+  isolation needs Swarm or Kubernetes secrets, or an external vault (HashiCorp Vault, cloud KMS),
+  none of which this single-host setup has a reason to run otherwise. Mitigation already in
+  place: `deploy/.env` is git-ignored and should be `chmod 600`; keep the `docker` group tight on
+  the host; `migrate` only receives the env vars it needs.
+- **INF-10 (Postgres: no TLS, open `pg_hba` on the compose subnet)** — `db` is reachable only
+  from containers on `internal_net` (not published to the host or LAN), so this is encryption
+  *within* one physical/VM host's loopback-equivalent bridge network, not over a real wire. Adding
+  TLS between `api` and `db` here is cert/rotation machinery to protect a hop that never leaves
+  the host. Revisit if the shape changes: multi-host (db not co-located with api/nginx) or
+  orchestrated (Swarm/K8s, where secrets and mTLS come close to free) both change this calculus.
+
+## Logging and retention
+`docker-compose.yml`'s `json-file` driver is sized generously (`50m` x `100` files = 5GB per
+container; see the `x-logging` comment for the request-rate math) so routine local rotation
+approximates the CERT-In 180-day floor instead of rotating away in hours like the previous
+10MB x 5 setting. This is still **local rotation on this one host's disk**, not durable
+retention: it is bounded by actual disk usage (a traffic spike fills it faster), it is lost if
+the host's disk is lost, and nothing here copies logs off-host. Durable, audit-grade 180-day
+retention needs log shipping (rsyslog, Loki, or a SIEM) to a separate store — that is a real,
+not-yet-scheduled task, not something achievable by tuning `docker-compose.yml` alone.

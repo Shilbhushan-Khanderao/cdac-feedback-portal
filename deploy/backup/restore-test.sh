@@ -17,6 +17,15 @@ cleanup() {
 }
 trap cleanup EXIT
 
+# Verify the encrypt-then-MAC tag (see backup.sh) before this ciphertext is ever handed to
+# CBC decryption -- a tampered/truncated backup fails here instead of hitting the decoder.
+[ -f "$FILE.hmac" ] || { echo "[restore-drill] FAIL: $FILE.hmac missing, cannot verify integrity"; exit 1; }
+MAC_KEY=$(printf '%s:hmac' "$BACKUP_ENCRYPTION_KEY" | openssl dgst -sha256 | sed 's/^.*= //')
+ACTUAL_HMAC=$(openssl dgst -sha256 -hmac "$MAC_KEY" "$FILE" | sed 's/^.*= //')
+EXPECTED_HMAC=$(cat "$FILE.hmac")
+[ "$ACTUAL_HMAC" = "$EXPECTED_HMAC" ] || { echo "[restore-drill] FAIL: HMAC mismatch -- backup is tampered or truncated"; exit 1; }
+echo "[restore-drill] HMAC verified"
+
 openssl enc -d -aes-256-cbc -pbkdf2 -pass env:BACKUP_ENCRYPTION_KEY -in "$FILE" | gunzip > "$TMP"
 dropdb -h "${PGHOST:-db}" -U "${PGUSER:?}" --if-exists "$SCRATCH"
 createdb -h "${PGHOST:-db}" -U "$PGUSER" "$SCRATCH"
