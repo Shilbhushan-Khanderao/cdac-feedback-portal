@@ -15,9 +15,10 @@
     "server:dev": "npm --prefix server run dev",
     "server:build": "npm --prefix server run build",
     "server:test": "npm --prefix server test",
-    "db:start": "\"C:\\Program Files\\PostgreSQL\\17\\bin\\pg_ctl.exe\" -D \".dev_db\" -o \"-p 5433\" -l \".dev_db/server.log\" start",
-    "db:stop": "\"C:\\Program Files\\PostgreSQL\\17\\bin\\pg_ctl.exe\" -D \".dev_db\" stop",
-    "test:load": "node server/node_modules/tsx/dist/cli.mjs tests/load/simulate-700-students.ts"
+    "db:init": "initdb -D .dev_db -U postgres -A trust",
+    "db:start": "pg_ctl -D .dev_db -o \"-p 5433\" -l .dev_db/server.log start",
+    "db:stop": "pg_ctl -D .dev_db stop",
+    "test:load": "node tests/load/loadtest.mjs"
   },
   "dependencies": {
     "@phosphor-icons/react": "^2.1.10",
