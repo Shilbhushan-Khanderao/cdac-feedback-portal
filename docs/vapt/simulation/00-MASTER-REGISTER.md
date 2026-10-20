@@ -1,0 +1,64 @@
+# VAPT simulation: master findings register
+
+Run: 2026-10-19/20, disposable local staging stack (WSL2 Docker, `deploy/docker-compose.yml` + a local-only port/TLS override, never committed). White-box, five domains. Source reports: `01-authn-session.md`, `02-authz-idor.md`, `03-injection-logic-anonymity.md`, `04-infra-config.md`, `05-client-privacy-compliance.md`.
+
+Three of eight domain-assignments were declined by the subagent running them, citing the active-testing framing, even though this was the user's own authorised disposable stack. I ran those checks myself directly against `localhost`. See the "Method note" in each affected report.
+
+## Fixed during this run
+
+| ID | Fix | Commit status |
+|---|---|---|
+| INF-11 / CL-3 | CORS-mismatch requests returned 500 with an uncaught-error shape; now return a clean 403. `server/src/index.ts` | Not committed |
+| INF-1 | nginx's own `/api` rate-limit zone keyed on the raw (unverifiable) session cookie, so a client sending a fresh random cookie per request got a fresh bucket every time — confirmed 0/700 requests throttled that way vs 626/700 with a fixed cookie. Re-keyed on client IP as a coarse NAT-safe backstop; the real per-session limit already lives in Fastify (`server/src/index.ts`), which verifies the cookie's signature before using it as a key. `deploy/nginx/nginx.conf` | Not committed |
+
+Both fixes were rebuilt and reverified live: CORS mismatch now returns 403; the duplicate `Cache-Control` header on `/assets/` from an earlier session is also gone (confirmed, no separate fix needed — already correct in the current nginx.conf).
+
+## Open findings by severity
+
+### High (4)
+
+| ID | Domain | Summary |
+|---|---|---|
+| CL-1 | Client | Feedback drafts in `localStorage` are not scoped per user — a second student on the same browser saw the first student's draft comment pre-filled. |
+| CMP-1 | Compliance | No access, correction or erasure path for data principals, and no grievance contact — a core DPDP requirement. |
+| CMP-2 | Compliance | Retention is declared in docs but unenforceable: the audit-log append-only trigger blocks every purge, even by the table owner. |
+| (see INF-2) | Infra | Base images carry known CVEs: nginx image 3 critical/35 high, Postgres image 3 critical/26 high (plus 4 critical in bundled Go tooling), API image 11 high, via Trivy. `npm audit` itself is clean. Listed here because of volume/severity even though the source report marks it Medium (no demonstrated exploit path in this app's usage). |
+
+### Medium (10)
+
+| ID | Domain | Summary |
+|---|---|---|
+| AZ-1 | Authz | `staff_roster`'s writable-column allowlist still names `role`/`centre_id`/`course_id`; currently blocked by a second check, but a latent privilege-escalation trap if that check is ever loosened. |
+| INF-1 | Infra | **Fixed this run** — see above. |
+| INF-2 | Infra | Base-image CVEs (also listed under High for severity). |
+| INF-3 | Infra | Backup uses unauthenticated AES-256-CBC with the key on the same host as the data, connects as the DB superuser, and the documented offsite copy can't run as shipped (SSH key not mounted). |
+| CL-2 | Client | Sign-out can silently fail client-side when `CORS_ORIGIN` doesn't exactly match the browser origin, leaving the session live after "Sign out" appears to succeed. |
+| CMP-3 | Compliance | `submissions`/`responses` rows are heap-order and `xmin`-correlated, and `submitted_at` sits next to them — a DBA or backup holder can re-link who submitted what, contradicting the "impossible to link" design claim. |
+| CMP-4 | Compliance | Consent is an unrecorded `localStorage` flag; the notice is English-only and staff receive none. |
+| CMP-5 | Compliance | Google OAuth scope and the WhatsApp share aren't disclosed; "100% in India" is overstated. |
+| CMP-6 | Compliance | Roster-upsert audit entries log only a row count while silently overwriting cohort/PII; authz failures, exports and bulk reads aren't audited at all. |
+| CMP-7 | Compliance | Container logs rotate out (10 MB × 5) well before the CERT-In 180-day floor, with no central store. |
+| CMP-8 | Compliance | Incident owners are unnamed, there's no detection capability, and DPDP breach notification isn't operational. |
+| CMP-10 | Compliance | The existing `docs/vapt/*` documents overclaim in ~15 places (status, test counts, tools, a rate limit that isn't implemented) — these need correcting before any external auditor reads them. |
+
+### Low / Info (remainder)
+
+See the five source reports for the full list (AUTH-1 info-only; INJ-1/INJ-2; CL-4–CL-8; CMP-9; INF-4–INF-10, INF-12). None change the go/no-go call on their own, but several (INF-4 OAuth code in logs, INF-6 secrets as plain env vars, CL-6 WhatsApp third-party leak) are cheap to fix and worth bundling into the same pass as the Mediums.
+
+## Controls that held (do not re-litigate these)
+
+- RLS/authorisation: every student-to-staff and cross-centre vector tested failed closed (403/401/404); the generic table endpoint's allowlist blocks `responses`/`submissions`/`audit_logs`/`user_sessions` entirely; `feedback_app` has no grant on `responses` and no UPDATE/DELETE on `audit_logs` even at the raw DB level.
+- Session/auth: logout invalidates server-side, `GET /auth/logout` and `/auth/dev-login` are both gone in production, tampered cookies are rejected cleanly, OAuth uses PKCE+state, no CORS-credentials leak.
+- Injection: SQL injection attempts are rejected or neutralised everywhere tried; the 2000-character answer cap and answer type schema are enforced server-side, not just in the UI; a literal `__proto__` key in a JSON body is rejected before reaching route code.
+- TLS: 1.2/1.3 only, AEAD ciphers, HSTS on every HTTPS response, no stack traces or server versions leaked, no exposed `.env`/`.git`/source maps, TRACE/PUT/DELETE blocked at the edge, DB not published to the host.
+- CSV/PDF exports carry no student identity or per-response timestamp; the SPA bundle has no secrets, no third-party calls on any authenticated route, and is XSS-safe against the one tested injection point (`error_description`).
+
+## Recommended order of work
+
+1. **CL-1, CMP-1, CMP-2** — the three High findings. CL-1 is a one-line localStorage key fix (already the pattern used for consent, per the frontend agent's earlier work — apply the same per-email scoping to drafts). CMP-1/CMP-2 are policy-plus-code: need a data-subject-request process and a controlled, logged exception to the append-only trigger for lawful retention expiry.
+2. **CMP-10** — correct the existing VAPT docs before they go anywhere near an external auditor; shipping overclaims to a CERT-In empanelled auditor is worse than shipping no claim.
+3. **AZ-1, INF-3, CL-2, CMP-3–CMP-8** — bundle into the same remediation pass as the restructure work already planned (`docs/RESTRUCTURE-PLAN.md`), since several (AZ-1, CMP-6) touch the same route files that plan already schedules for splitting.
+4. **INF-2 (image CVEs)** — rebuild on updated base images as a routine patching task, not urgent architecture work; re-scan with Trivy after.
+5. Everything else Low/Info — fold into the next normal patch cycle.
+
+None of these are new go-live blockers beyond what the earlier engineering pass already found and fixed (RLS, TLS, seed data, rate limits). They are what a real external VAPT auditor would most likely write up given the same access — worth clearing before that audit, not necessarily before this stack is usable for a controlled pilot.
