@@ -1,10 +1,14 @@
-import { Document, Image, Page, StyleSheet, Text, View } from '@react-pdf/renderer';
+import { Document, Image, Page, Path, StyleSheet, Svg, Text, View } from '@react-pdf/renderer';
+import { CDAC_MARK_PATH, CDAC_MARK_VIEWBOX } from '../lib/brandMark';
 
 // Ported from v1 ReportDocument.jsx: title block, 2 chart images per page, one page per comment section.
 // No emoji source: it would fetch from a CDN (breaks air-gapped hosts), so emoji are stripped from text instead.
 
 const styles = StyleSheet.create({
   page: { padding: 36, fontSize: 11, fontFamily: 'Helvetica' },
+  brandRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', marginBottom: 10 },
+  brandDivider: { width: 1, height: 18, backgroundColor: '#d6d3d1', marginHorizontal: 10 },
+  brandText: { fontSize: 11, fontFamily: 'Helvetica-Bold', color: '#166e40' },
   title: { fontSize: 16, textAlign: 'center', marginBottom: 10, fontFamily: 'Helvetica-Bold' },
   hr: { borderBottomWidth: 1, borderBottomColor: '#cccccc', marginVertical: 6 },
   meta: { marginBottom: 4 },
@@ -47,6 +51,13 @@ export function ReportDocument({ title, meta, chartImages, comments }: ReportPro
         <Page key={`c${pi}`} size="A4" style={styles.page}>
           {pi === 0 && (
             <View style={{ marginBottom: 6 }}>
+              <View style={styles.brandRow}>
+                <Svg viewBox={CDAC_MARK_VIEWBOX} style={{ width: 66, height: 47 }}>
+                  <Path d={CDAC_MARK_PATH} fill="#166e40" />
+                </Svg>
+                <View style={styles.brandDivider} />
+                <Text style={styles.brandText}>Feedback Portal</Text>
+              </View>
               <Text style={styles.title}>{clean(title)}</Text>
               <View style={styles.hr} />
               {meta.map(([k, v]) => (
