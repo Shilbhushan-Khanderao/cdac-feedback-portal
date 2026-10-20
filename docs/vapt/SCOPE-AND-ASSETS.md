@@ -29,13 +29,15 @@
 
 ## 2. Test Accounts & Role-Based Personas
 
-Three distinct role accounts are provisioned in the staging seed dataset (`server/src/db/seed.sql`):
+Three distinct role accounts are provisioned in the staging seed dataset. **Correction:** the actual seed file is `server/src/db/seed.sql` (there is no Supabase-based `seed.sql` on this branch), and it provisions `*@test.local` accounts, not the `@acts.cdac.in`/`@cdac.in` addresses below — those were placeholder examples, not what the seed actually creates:
 
-| Role | Test Email Identifier | Permissions & Boundaries |
+| Role | Test Email Identifier (as actually seeded) | Permissions & Boundaries |
 |---|---|---|
-| **Student** | `student.ai.1@acts.cdac.in` | Submits feedback only for active sessions within their enrolled cohort (batch, centre, course). Cannot view other students' submissions or reports. |
-| **Course Coordinator (CC)** | `cc.pune.ai@acts.cdac.in` | Manages sessions, uploads roster, views aggregated feedback reports ONLY for assigned centre (Pune) and assigned course (PGCP-AI). |
-| **Portal Administrator** | `admin.acts@cdac.in` | Full management access across all C-DAC centres, ATCs, courses, batches, and global configuration. |
+| **Student** | `student1@test.local` (and similar, see `server/src/db/seed.sql`) | Submits feedback only for active sessions within their enrolled cohort (batch, centre, course). Cannot view other students' submissions or reports. |
+| **Course Coordinator (CC)** | `cc@test.local`, `cc.atc@test.local` | Manages sessions, uploads roster, views aggregated feedback reports ONLY for their assigned centre and course scope. |
+| **Portal Administrator** | `admin@test.local` | Full management access across all C-DAC centres, ATCs, courses, batches, and global configuration. |
+
+`DEPLOYMENT-CHECKLIST.md` requires these seeded/test accounts to be absent before go-live ("Go-live" section). `npm run seed` (`server/src/db/seed.ts` + `seed.sql`) refuses to run when `NODE_ENV=production`; it is local/CI test data only, never applied to a production deploy.
 
 ---
 
@@ -44,8 +46,10 @@ Auditors are specifically requested to test and verify the following architectur
 1. **Student Anonymity Invariant**:
    - `public.responses` table must never contain user email, PRN, IP address, or timestamp.
    - `session_report()` function must enforce $k \ge 3$ minimum threshold and shuffle comment order randomly to prevent timing correlation.
+   - **Known residual risk, not yet closed (CMP-3):** at the raw storage layer, `responses` and `submissions` rows from the same submission share `xmin`/heap order, and `submissions.submitted_at` sits next to them — a DB superuser or decrypted-backup holder could still correlate by position/time. The application-layer guarantee above holds; the storage-layer one does not yet.
 2. **Horizontal Privilege Escalation (BOLA/IDOR)**:
    - Verify CCs from one ATC cannot view or modify feedback sessions of another ATC or centre.
    - Verify students cannot submit answers to cohorts they are not rostered in.
 3. **CERT-In 180-Day Audit Logging**:
-   - Confirm that all administrative actions, roster uploads, and logins create tamper-evident entries in `public.audit_logs`.
+   - Confirm that all administrative actions, roster uploads, and logins create entries in `public.audit_logs`. **Correction:** these entries are append-only (DB-enforced via trigger, blocking even the table owner — `server/src/db/migrations/002_security.sql:88-104`), not "tamper-evident" in the cryptographic sense — there is no hash chain and no off-host copy, and a Postgres superuser could still drop the trigger. Coverage is also incomplete: authz failures and bulk PII reads/exports aren't logged (CMP-6).
+4. **Age assurance (CMP-9):** the platform assumes an adult (18+) PG-diploma student cohort, with no date-of-birth field and no technical control against a minor's email being rostered. This assumption is not formally recorded elsewhere and should be confirmed by CDAC before go-live (see `docs/THREAT-MODEL.md` §1 for the fuller note).
