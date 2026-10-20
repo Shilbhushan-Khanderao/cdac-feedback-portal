@@ -4,6 +4,15 @@ Run: 2026-10-19/20, disposable local staging stack (WSL2 Docker, `deploy/docker-
 
 Three of eight domain-assignments were declined by the subagent running them, citing the active-testing framing, even though this was the user's own authorised disposable stack. I ran those checks myself directly against `localhost`. See the "Method note" in each affected report.
 
+## Fixed after this run (same conversation, follow-up work)
+
+| ID | Fix |
+|---|---|
+| AZ-1 | `staff_roster` writes now blocked by a second, independent admin-only check inside `assertCanWrite`, not just by its absence from `STAFF_WRITABLE`. |
+| CMP-1 | Admin-managed `grievance_officers` contact (name + email only — no login, no new role; adding one is deferred until/unless this person needs to work inside the portal). |
+| CMP-2 | `node dist/db/retention-purge.js [--years 2] [--confirm]`: dry-run by default, deletes expired submissions/responses and aged-out `audit_logs` rows inside one transaction that disables/re-enables the append-only trigger around the delete. Verified live against a real Postgres. Not run from `migrate.ts`. |
+| INF-2 | All three images rebuilt on current patched base images, pinned by tag+digest (`node:22-alpine`, `nginx:1.31.7-alpine`, `postgres:16.15-alpine`). Rescanned with Trivy: web image dropped from 3 critical/35 high to 0/2 high (both already have upstream Alpine fixes pending); backup image's OS layer dropped to 0 (was 3 critical/26 high); its remaining 1 critical/24 high all sit in `gosu`, a Go binary baked into the official upstream `postgres` image by its own build process — not controllable from this Dockerfile, and it's a startup-only privilege-drop helper, never network-reachable. API image's 11 high are npm package CVEs (`server/package.json`), unaffected by an OS base image bump; track those via `npm audit`/Dependabot separately. |
+
 ## Fixed during this run
 
 | ID | Fix | Commit status |
