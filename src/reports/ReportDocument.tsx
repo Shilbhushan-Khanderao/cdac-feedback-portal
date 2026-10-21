@@ -53,7 +53,7 @@ export function ReportDocument({ title, meta, chartImages, comments }: ReportPro
             <View style={{ marginBottom: 6 }}>
               <View style={styles.brandRow}>
                 <Svg viewBox={CDAC_MARK_VIEWBOX} style={{ width: 66, height: 47 }}>
-                  <Path d={CDAC_MARK_PATH} fill="#166e40" />
+                  <Path d={CDAC_MARK_PATH} fill="#166e40" fillRule="evenodd" />
                 </Svg>
                 <View style={styles.brandDivider} />
                 <Text style={styles.brandText}>Feedback Portal</Text>

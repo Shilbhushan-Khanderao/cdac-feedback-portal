@@ -19,7 +19,7 @@ import { CDAC_MARK_PATH, CDAC_MARK_VIEWBOX } from '../lib/brandMark';
 export function CdacMark({ className }: { className?: string }) {
   return (
     <svg viewBox={CDAC_MARK_VIEWBOX} className={className} aria-hidden fill="currentColor" stroke="none">
-      <path d={CDAC_MARK_PATH} />
+      <path d={CDAC_MARK_PATH} fillRule="evenodd" />
     </svg>
   );
 }
@@ -38,8 +38,8 @@ export function FeedbackMark({ className }: { className?: string }) {
 export function BrandLockup({ className = '' }: { className?: string }) {
   return (
     <span className={`flex items-center gap-3 ${className}`}>
-      <CdacMark className="h-7 w-auto text-brand-800" />
-      <span className="h-6 w-px bg-stone-300" aria-hidden />
+      <CdacMark className="h-11 w-auto text-brand-800" />
+      <span className="h-9 w-px bg-stone-300" aria-hidden />
       <span className="flex items-center gap-1.5 font-semibold tracking-tight text-stone-900">
         <FeedbackMark className="size-5 text-brand-700" />
         Feedback Portal
