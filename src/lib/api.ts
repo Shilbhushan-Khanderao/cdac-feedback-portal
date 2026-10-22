@@ -131,7 +131,11 @@ async function request<T>(endpoint: string, options: RequestInit = {}): Promise<
   const res = await fetch(url, {
     ...options,
     headers: {
-      'Content-Type': 'application/json',
+      // Only set for requests that actually have a JSON body: Fastify's JSON parser
+      // rejects an empty body sent with this content-type (400), which broke every
+      // no-body POST (logout, consent) silently - the client reloaded/moved on anyway,
+      // so logout looked like it worked while the session cookie was never cleared.
+      ...(options.body ? { 'Content-Type': 'application/json' } : {}),
       ...options.headers,
     },
     credentials: 'include', // sends signed HttpOnly session cookie
