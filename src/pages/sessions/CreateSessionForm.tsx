@@ -49,7 +49,7 @@ export function CreateSessionForm({ onDone }: Props) {
       const moduleId = form.get('module') as string;
       const mod = modules.data?.find((m) => m.id === moduleId);
       const first = Array.isArray(data) ? data[0] : data;
-      toast.success(single ? 'Session created!' : `${cohort.centre_ids.length} sessions created.`);
+      toast.success(single ? 'Session created' : `${cohort.centre_ids.length} sessions created`);
       void queryClient.invalidateQueries({ queryKey: ['sessions'] });
       onDone(first?.id ? { id: first.id, moduleName: mod?.name } : undefined);
     },

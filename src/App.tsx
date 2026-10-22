@@ -105,8 +105,7 @@ function Layout() {
       </main>
       <footer className="border-t border-stone-200 px-4 py-4 text-xs text-stone-500">
         <div className="mx-auto max-w-6xl">
-          C-DAC Module Feedback Portal · Feedback data is processed under the DPDP Act 2023 notice shown at
-          sign-in · Built to WCAG 2.1 AA accessibility guidelines — report issues to your course coordinator.
+          C-DAC Module Feedback Portal. Found a problem? Tell your course coordinator.
         </div>
       </footer>
     </>

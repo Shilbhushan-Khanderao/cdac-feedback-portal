@@ -37,7 +37,7 @@ export function SessionsPage() {
 
   const copyCreatedLink = async () => {
     await copyFeedbackLink(studentLink);
-    toast.success('Feedback link copied to clipboard!');
+    toast.success('Feedback link copied to clipboard');
   };
   const shareCreatedLink = () => shareFeedbackLink(studentLink, createdSession?.moduleName ?? 'the module');
 

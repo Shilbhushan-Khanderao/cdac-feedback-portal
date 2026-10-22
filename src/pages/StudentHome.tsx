@@ -31,8 +31,8 @@ export function StudentHome() {
         {pending.length === 0 && (
           <div className="card space-y-2 text-center py-8">
             <Confetti size={32} className="mx-auto text-brand-600" aria-hidden />
-            <p className="font-medium text-stone-800">You are all caught up!</p>
-            <p className="text-xs text-stone-500">There are no pending feedback sessions for your batch right now.</p>
+            <p className="font-medium text-stone-800">All caught up.</p>
+            <p className="text-xs text-stone-500">No pending feedback sessions for your batch right now.</p>
           </div>
         )}
         {pending.map((s) => {
