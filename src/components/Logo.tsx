@@ -16,7 +16,7 @@
  */
 import { CDAC_MARK_PATH, CDAC_MARK_VIEWBOX } from '../lib/brandMark';
 
-export function CdacMark({ className }: { className?: string }) {
+function CdacMark({ className }: { className?: string }) {
   return (
     <svg viewBox={CDAC_MARK_VIEWBOX} className={className} aria-hidden fill="currentColor" stroke="none">
       <path d={CDAC_MARK_PATH} fillRule="evenodd" />
@@ -25,7 +25,7 @@ export function CdacMark({ className }: { className?: string }) {
 }
 
 /** Our own mark: a speech-bubble with a checkmark, representing "feedback, received". */
-export function FeedbackMark({ className }: { className?: string }) {
+function FeedbackMark({ className }: { className?: string }) {
   return (
     <svg viewBox="0 0 24 24" className={className} aria-hidden fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
       <path d="M4 5.5A2.5 2.5 0 0 1 6.5 3h11A2.5 2.5 0 0 1 20 5.5v7a2.5 2.5 0 0 1-2.5 2.5H12l-4 4v-4H6.5A2.5 2.5 0 0 1 4 12.5v-7Z" />
