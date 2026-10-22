@@ -1,0 +1,6 @@
+dist
+node_modules
+.agents
+.dev_db
+.claude
+package-lock.json

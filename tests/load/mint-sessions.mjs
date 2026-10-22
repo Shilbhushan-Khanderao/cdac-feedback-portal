@@ -8,7 +8,7 @@
 import fs from 'node:fs';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
-const pg = createRequire(import.meta.url)('../../server/node_modules/pg'); // reuse server's pg, no new dep
+const pg = createRequire(import.meta.url)('pg'); // hoisted from apps/api, no new dep
 
 const E = process.env;
 if (E.CONFIRM_STAGING !== 'yes') { console.error('Set CONFIRM_STAGING=yes (staging DB only).'); process.exit(2); }

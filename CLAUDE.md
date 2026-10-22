@@ -5,14 +5,15 @@ On-premise (branch `on-premise`). Replaces the older Supabase/GitHub Pages versi
 
 ## Stack
 React 19 + TypeScript + Vite + Tailwind v4, react-router `createHashRouter`, TanStack Query.
+Layout: npm workspaces `apps/web` (SPA), `apps/api` (API), one root lockfile. API tests live in `apps/api/tests/`.
 Reports: recharts, sentiment + compromise, @react-pdf/renderer (lazy loaded).
-Backend: Fastify + `pg` in `server/`, PostgreSQL 16 with RLS, Google OAuth, session cookies.
+Backend: Fastify + `pg` in `apps/api/`, PostgreSQL 16 with RLS, Google OAuth, session cookies.
 Serving: nginx (TLS, static SPA, proxy) via Docker Compose in `deploy/`.
 
 ## Commands
-- `npm run dev` (SPA :5173), `npm run server:dev` (API :3000; needs a local Postgres and `server/.env`)
+- `npm run dev` (SPA :5173), `npm run server:dev` (API :3000; needs a local Postgres and `apps/api/.env`)
 - `npm test` (frontend vitest), `npm run server:test` (needs Postgres, see `.github/workflows/ci.yml` for env)
-- `npx tsc -b && npm run build`
+- `npx tsc -b apps/web && npm run build`; `npm run lint`; Node 22 (`.nvmrc`)
 - Deploy: `docker compose --env-file deploy/.env -f deploy/docker-compose.yml up -d --build`; secrets in `deploy/.env` (template `deploy/.env.example`)
 - Migrations: `node dist/db/migrate.js` (compose `migrate` service). First admin: `node dist/db/bootstrap-admin.js <email> <name>`
 
@@ -23,6 +24,6 @@ Serving: nginx (TLS, static SPA, proxy) via Docker Compose in `deploy/`.
 - Faculty rows belong to a centre (NULL = shared). CCs add their own centre's faculty inline.
 - RLS is the security boundary; the API must run as `feedback_app` (not superuser, not table owner). Client-side filters only trim dropdowns.
 - Never delete data that holds feedback: sessions with submissions can't be deleted; courses, modules and batches in use are protected by FK. Deactivate instead.
-- Schema changes go in a new versioned migration under `server/src/db/`, applied by `migrate`, with a server test for any new policy. Never edit an applied migration.
+- Schema changes go in a new versioned migration under `apps/api/src/db/`, applied by `migrate`, with a server test for any new policy. Never edit an applied migration.
 - `NODE_ENV=production` must disable dev-login. No secret has a default value; add new ones to `deploy/.env.example` and `deploy/docker-compose.yml` with `${VAR:?}`.
 - Seed/test data is for local development only and must never load in production.

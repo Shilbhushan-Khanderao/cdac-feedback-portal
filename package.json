@@ -4,47 +4,31 @@
   "version": "0.1.0",
   "type": "module",
   "workspaces": [
-    "server"
+    "apps/*"
   ],
   "description": "C-DAC module feedback portal: students submit, course coordinators schedule and report",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc -b && vite build",
-    "preview": "vite preview",
-    "test": "vitest run",
-    "server:dev": "npm --prefix server run dev",
-    "server:build": "npm --prefix server run build",
-    "server:test": "npm --prefix server test",
+    "dev": "npm -w apps/web run dev",
+    "build": "npm -w apps/web run build",
+    "preview": "npm -w apps/web run preview",
+    "test": "npm -w apps/web test",
+    "server:dev": "npm -w apps/api run dev",
+    "server:build": "npm -w apps/api run build",
+    "server:test": "npm -w apps/api test",
     "db:init": "initdb -D .dev_db -U postgres -A trust",
     "db:start": "pg_ctl -D .dev_db -o \"-p 5433\" -l .dev_db/server.log start",
     "db:stop": "pg_ctl -D .dev_db stop",
-    "test:load": "node tests/load/loadtest.mjs"
-  },
-  "dependencies": {
-    "@phosphor-icons/react": "^2.1.10",
-    "@react-pdf/renderer": "^4.9.0",
-    "@tanstack/react-query": "^5.104.0",
-    "compromise": "^14.17.0",
-    "html-to-image": "^1.11.13",
-    "papaparse": "^5.7.0",
-    "react": "^19.3.0",
-    "react-dom": "^19.3.0",
-    "react-router": "^8.4.0",
-    "recharts": "^3.10.1",
-    "sentiment": "^5.0.2",
-    "sonner": "^2.0.8"
+    "test:load": "node tests/load/loadtest.mjs",
+    "lint": "eslint .",
+    "format:check": "prettier --check *.json *.js"
   },
   "devDependencies": {
-    "@tailwindcss/vite": "^4.3.3",
-    "@types/node": "^22.13.0",
-    "@types/papaparse": "^5.5.2",
-    "@types/react": "^19.3.0",
-    "@types/react-dom": "^19.3.0",
-    "@types/sentiment": "^5.0.4",
-    "@vitejs/plugin-react": "^6.0.1",
-    "tailwindcss": "^4.3.3",
-    "typescript": "~5.9.3",
-    "vite": "^8.3.1",
-    "vitest": "^5.0.2"
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.13.0",
+    "prettier": "^3.9.10",
+    "typescript-eslint": "^8.72.0"
+  },
+  "engines": {
+    "node": ">=22 <23"
   }
 }

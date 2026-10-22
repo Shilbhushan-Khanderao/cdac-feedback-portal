@@ -22,7 +22,7 @@ Docker is **not** needed for local dev — only for the production deployment in
 ```bash
 git clone <repo-url> cdac-feedback-portal
 cd cdac-feedback-portal
-npm ci              # installs the root (SPA) and server/ (npm workspace) in one pass
+npm ci              # installs both workspaces (apps/web, apps/api) in one pass
 ```
 
 If `npm ci` fails with `EUSAGE ... package-lock.json ... out of sync`, see
@@ -45,11 +45,11 @@ Stop it any time with `npm run db:stop`.
 ### 4. Configure the server
 
 ```bash
-cd server
+cd apps/api
 cp .env.example .env
 ```
 
-Edit `server/.env`:
+Edit `apps/api/.env`:
 - `COOKIE_SECRET` — any 32+ character random string (`openssl rand -hex 32`).
 - `DATABASE_URL=postgresql://feedback_app:devpass@localhost:5433/cdac_feedback`
 - `DATABASE_ADMIN_URL=postgresql://postgres@localhost:5433/cdac_feedback` (no password needed — trust auth)
@@ -66,7 +66,7 @@ psql -h localhost -p 5433 -U postgres -c "create database cdac_feedback"
 ### 5. Apply migrations and seed data
 
 ```bash
-npm run migrate      # applies server/src/db/migrations/*.sql, creates the feedback_app role
+npm run migrate      # applies apps/api/src/db/migrations/*.sql, creates the feedback_app role
 npm run seed         # DEV-ONLY fake data: refuses to run if NODE_ENV=production
 ```
 
@@ -93,7 +93,7 @@ email and you're in, no OAuth setup required.
 ### 7. Run the tests
 
 ```bash
-npx tsc -b && npm test         # frontend: typecheck + vitest (8 tests, no DB needed)
+npx tsc -b apps/web && npm test         # frontend: typecheck + vitest (8 tests, no DB needed)
 npm run server:test             # server: vitest against the DB from step 3 (71 tests)
 ```
 
@@ -171,7 +171,7 @@ $DC up -d --build
 ```
 
 This builds the `api` and `web` (nginx) images, starts `db`, runs `migrate` once (it creates
-the `feedback_app` role and applies every migration in `server/src/db/migrations/`), then
+the `feedback_app` role and applies every migration in `apps/api/src/db/migrations/`), then
 starts `api` only once `migrate` succeeded, then `nginx`, then `backup`.
 
 ```bash
@@ -229,8 +229,8 @@ The restore drill should print `PASS` with row counts for every table, including
 
 From here, day-2 operations (logs, TLS renewal, secret rotation, incident response) are in
 [docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md](docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md), and the
-current security/compliance status is tracked in `docs/vapt/` — see
-[docs/vapt/simulation/00-MASTER-REGISTER.md](docs/vapt/simulation/00-MASTER-REGISTER.md) for
+current security/compliance status is tracked in `docs/security/` — see
+[docs/security/simulation/00-MASTER-REGISTER.md](docs/security/simulation/00-MASTER-REGISTER.md) for
 what's fixed and what's still open before external VAPT submission.
 
 ---
@@ -259,14 +259,14 @@ the Node versions this project currently uses; upgrade Node if it starts matteri
 
 ### `/auth/dev-login` returns 404 locally
 
-`NODE_ENV` in `server/.env` isn't `development` (or `test`). It must **not** be `production`
+`NODE_ENV` in `apps/api/.env` isn't `development` (or `test`). It must **not** be `production`
 for local dev — that's the flag that disables dev-login.
 
 ### Port already in use (5433, 3000, or 5173)
 
 Another process is already bound to it. Either stop it, or override: Postgres port is set in
-the `db:start`/`db:stop` scripts in `package.json`; the API port via `PORT` in `server/.env`;
-the Vite port via `vite.config.ts`'s `server.port` (and its `/api`/`/auth` proxy target must
+the `db:start`/`db:stop` scripts in `package.json`; the API port via `PORT` in `apps/api/.env`;
+the Vite port via `apps/web/vite.config.ts`'s `server.port` (and its `/api`/`/auth` proxy target must
 then match the API's actual port).
 
 ### Server tests fail with odd audit-log/count mismatches, but pass when run alone

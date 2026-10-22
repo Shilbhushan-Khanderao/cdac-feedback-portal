@@ -7,7 +7,7 @@ Hostname placeholder: `feedback.example.in`. Compose file: `deploy/docker-compos
 - [ ] Host: 4 vCPU / 8 GB RAM / 100 GB SSD (confirm with load test), Docker + compose plugin, NTP synced.
 - [ ] DNS for the hostname points to the host; ports 80/443 open to campus.
 - [ ] TLS cert + key placed as `deploy/nginx/certs/fullchain.pem` and `deploy/nginx/certs/privkey.pem` (gitignored).
-- [ ] Google OAuth client created; redirect URI = `${APP_URL}/auth/google/callback` (confirm exact path in `server/src/auth/routes.ts`); host can reach Google endpoints.
+- [ ] Google OAuth client created; redirect URI = `${APP_URL}/auth/google/callback` (confirm exact path in `apps/api/src/modules/auth/routes.ts`); host can reach Google endpoints.
 - [ ] `cp deploy/.env.example deploy/.env`; fill every value (`openssl rand -hex 32` for secrets). `docker compose config` fails if any is missing.
 - [ ] Offsite backup target decided (`BACKUP_OFFSITE_TARGET`) and ssh key mounted into the backup service.
 - [ ] (Recommended, not required) DBA grants a least-privilege backup role so `pg_dump` stops running as the superuser: see the `BACKUP_DB_ROLE` comment in `deploy/.env.example` for the exact `GRANT`. Until this is done, backups keep running as `POSTGRES_USER` — nothing breaks either way.
@@ -33,7 +33,7 @@ Hostname placeholder: `feedback.example.in`. Compose file: `deploy/docker-compos
 ## Go-live
 - [ ] Real roster uploaded; test accounts absent.
 - [ ] VAPT findings High/Critical closed, or residual risk signed off in writing.
-- [ ] Incident contact and backup owner named in `docs/vapt/INCIDENT-RESPONSE.md`.
+- [ ] Incident contact and backup owner named in `docs/security/INCIDENT-RESPONSE.md`.
 
 ## Accepted risk (single-host Compose, no secrets manager)
 This deployment is one Docker Compose stack on one host. Two VAPT findings are

@@ -15,7 +15,7 @@ const VUS = +(E.VUS || 1500), RAMP_S = +(E.RAMP_S || 120), CC_PCT = +(E.CC_PCT |
 const THINK = +(E.THINK_MS || 1500), OUT = E.OUT || 'tests/load/summary.json';
 const P95_MS = 1000;
 
-// Seeded students (server/src/db/seed.sql): pune 1-20, mumbai 1-15, bda 1-15, ai 1-12.
+// Seeded students (apps/api/src/db/seed.sql): pune 1-20, mumbai 1-15, bda 1-15, ai 1-12.
 // Dev mode reuses these ~62 emails, so repeat submits get "already submitted" (expected, counted separately).
 const pad = (i) => String(i).padStart(2, '0');
 const SEEDED = [['pune', 20], ['mumbai', 15], ['bda', 15], ['ai', 12]]

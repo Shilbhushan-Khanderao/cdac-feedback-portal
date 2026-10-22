@@ -5,5 +5,4 @@ dist
 .dev_db
 .claude
 .agents
-.planning
 deploy/nginx/certs

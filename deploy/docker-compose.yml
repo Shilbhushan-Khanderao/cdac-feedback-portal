@@ -48,7 +48,7 @@ services:
 
   # One-shot: applies migrations as the DB owner, then exits. api waits for it.
   migrate:
-    build: { context: ../server, dockerfile: ../deploy/Dockerfile.server }
+    build: { context: .., dockerfile: deploy/Dockerfile.server }
     image: cdac-feedback-api:local
     restart: "no"
     command: ["node", "dist/db/migrate.js"]
