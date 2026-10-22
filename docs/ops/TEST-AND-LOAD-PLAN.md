@@ -12,7 +12,7 @@ single load-generator IP it WILL hit the limit, so for staging either raise limi
 
 ## 1. Load test (staging, through nginx)
 
-Files: `tests/load/loadtest.mjs` (Node 18+, no deps), `tests/load/mint-sessions.mjs`, `tests/load/load.k6.js` (optional).
+Files: `tests/load/loadtest.mjs` (Node 18+, no deps), `tests/load/mint-sessions.mjs`.
 
 Flow per student VU: whoami, list my sessions, load form, submit. About 2% of VUs run the CC flow: dashboard, session report.
 VUs start staggered over `RAMP_S` (default 120 s) up to `VUS` (default 1500).

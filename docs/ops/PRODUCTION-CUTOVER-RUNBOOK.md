@@ -49,7 +49,7 @@ Changing the hostname requires `$DC up -d --build nginx` (the name is baked in a
 - Disk: watch `pgdata` and `backups_data` volumes.
 
 ## Capacity
-Start at 4 vCPU / 8 GB. Tune API pool and Postgres `max_connections` from load-test results (`npm run test:load`, or `tests/load/load.k6.js`). Two-layer rate limiting, both sized for a campus NAT (many students behind one IP):
+Start at 4 vCPU / 8 GB. Tune API pool and Postgres `max_connections` from load-test results (`npm run test:load`). Two-layer rate limiting, both sized for a campus NAT (many students behind one IP):
 - nginx is a coarse per-IP backstop only — it can't verify the signed session cookie, so it's keyed on IP: `/api` 1500 req/min (burst 100), `/auth` 1200 req/min (burst 300).
 - Fastify (`server/src/index.ts`) does the real fine-grained limiting: it verifies the cookie's signature first, then keys on the session (240 req/min) or falls back to IP (1500 req/min) for unsigned/missing cookies.
 
