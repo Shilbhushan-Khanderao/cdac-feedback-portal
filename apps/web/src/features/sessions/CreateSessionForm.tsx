@@ -3,10 +3,11 @@ import { useMutation, useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import { useMe } from '../../app/auth';
 import { sessionsApi, type CreateSessionPayload } from '../../shared/sessionsApi';
-import { toLocalInput } from '../../shared/format';
 import { useBatches, useModules } from '../../shared/reference';
 import { CohortPicker, cohortReady, emptyCohort, type Cohort } from '../../shared/CohortPicker';
 import { FacultyPicker } from '../../shared/FacultyPicker';
+import { ScheduleFields, type Schedule } from '../../shared/ScheduleFields';
+import { Choice } from '../../shared/ui';
 
 interface Props {
   onDone: (created?: { id: string; moduleName?: string }) => void;
@@ -19,6 +20,14 @@ export function CreateSessionForm({ onDone }: Props) {
   const batches = useBatches();
   const [cohort, setCohort] = useState<Cohort>(() => emptyCohort(me));
   const [faculty, setFaculty] = useState<string[]>([]);
+  const [moduleId, setModuleId] = useState('');
+  const [schedule, setSchedule] = useState<Schedule>(() => {
+    const now = Math.floor(Date.now() / 60000) * 60000;
+    return {
+      opens: new Date(now).toISOString(),
+      closes: new Date(now + 3 * 86400000).toISOString(),
+    };
+  });
   const single = cohort.centre_ids.length === 1;
 
   // Auto pre-fill batch if not set
@@ -32,21 +41,19 @@ export function CreateSessionForm({ onDone }: Props) {
   }, [batches.data, cohort.batch_id]);
 
   const create = useMutation({
-    mutationFn: (form: FormData) => {
-      const moduleId = form.get('module') as string;
+    mutationFn: () => {
       const payload: CreateSessionPayload[] = cohort.centre_ids.map((centre_id) => ({
         batch_id: cohort.batch_id,
         centre_id,
         course_id: cohort.course_id,
         module_id: moduleId,
         faculty: single ? faculty : [],
-        opens_at: new Date(form.get('opens') as string).toISOString(),
-        closes_at: new Date(form.get('closes') as string).toISOString(),
+        opens_at: schedule.opens,
+        closes_at: schedule.closes,
       }));
       return sessionsApi.create(payload);
     },
-    onSuccess: (data, form) => {
-      const moduleId = form.get('module') as string;
+    onSuccess: (data) => {
       const mod = modules.data?.find((m) => m.id === moduleId);
       const first = Array.isArray(data) ? data[0] : data;
       toast.success(single ? 'Session created' : `${cohort.centre_ids.length} sessions created`);
@@ -59,14 +66,19 @@ export function CreateSessionForm({ onDone }: Props) {
   const onSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     if (!cohortReady(cohort)) return toast.error('Pick batch, centre and course');
-    create.mutate(new FormData(e.currentTarget));
+    if (!moduleId) return toast.error('Pick a module');
+    if (Date.parse(schedule.closes) <= Date.parse(schedule.opens))
+      return toast.error('Closes must be after Opens');
+    create.mutate();
   };
 
   return (
     <form onSubmit={onSubmit} className="card space-y-4 border-brand-300 shadow-sm">
       <div className="border-b pb-2">
         <h2 className="card-title">Create Feedback Session</h2>
-        <p className="text-xs text-stone-500">Cohort parameters are pre-filled based on your coordinator profile.</p>
+        <p className="text-xs text-stone-500">
+          Cohort parameters are pre-filled based on your coordinator profile.
+        </p>
       </div>
 
       <CohortPicker
@@ -74,45 +86,31 @@ export function CreateSessionForm({ onDone }: Props) {
         value={cohort}
         onChange={(c) => {
           if (c.centre_ids.join() !== cohort.centre_ids.join()) setFaculty([]); // faculty belong to a centre
+          if (c.course_id !== cohort.course_id) setModuleId(''); // modules belong to a course
           setCohort(c);
         }}
         multiCentre
       />
-      <div className="grid gap-4 sm:grid-cols-3">
-        <div>
-          <label className="label font-medium" htmlFor="module">Module</label>
-          <select id="module" name="module" className="input" required disabled={!cohort.course_id}>
-            <option value="">{cohort.course_id ? 'Select module' : 'Pick a course first'}</option>
-            {modules.data
-              ?.filter((m) => m.course_id === cohort.course_id)
-              .map((m) => (
-                <option key={m.id} value={m.id}>
-                  {m.name}
-                </option>
-              ))}
-          </select>
-        </div>
-        <div>
-          <label className="label font-medium" htmlFor="opens">Opens</label>
-          <input id="opens" name="opens" type="datetime-local" className="input" required defaultValue={toLocalInput(new Date())} />
-        </div>
-        <div>
-          <label className="label font-medium" htmlFor="closes">Closes</label>
-          <input
-            id="closes"
-            name="closes"
-            type="datetime-local"
-            className="input"
-            required
-            defaultValue={toLocalInput(new Date(Date.now() + 3 * 86400000))}
-          />
-        </div>
-      </div>
+      <Choice
+        label="Module"
+        value={moduleId}
+        onChange={setModuleId}
+        isRequired
+        isDisabled={!cohort.course_id}
+        placeholder={cohort.course_id ? 'Select module' : 'Pick a course first'}
+        options={(modules.data ?? [])
+          .filter((m) => m.course_id === cohort.course_id)
+          .map((m) => ({ value: m.id, label: m.name }))}
+      />
+      <ScheduleFields value={schedule} onChange={setSchedule} />
       {single ? (
         <FacultyPicker centreId={cohort.centre_ids[0]} value={faculty} onChange={setFaculty} />
       ) : (
         cohort.centre_ids.length > 1 && (
-          <p className="muted">One session per centre will be created. Each centre’s CC adds its faculty on the session page.</p>
+          <p className="muted">
+            One session per centre will be created. Each centre’s CC adds its faculty on the session
+            page.
+          </p>
         )
       )}
       <div className="flex gap-2 pt-2">

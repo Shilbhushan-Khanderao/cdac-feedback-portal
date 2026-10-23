@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Link, useNavigate, useParams } from 'react-router';
 import { toPng } from 'html-to-image';
@@ -6,7 +6,15 @@ import { toast } from 'sonner';
 import { reportsApi } from './api';
 import { sessionsApi } from '../../shared/sessionsApi';
 import { rosterApi } from '../../shared/rosterApi';
-import { copyFeedbackLink, fmt, shareFeedbackLink, sessionStatus, STATUS_STYLE, toLocalInput } from '../../shared/format';
+import {
+  copyFeedbackLink,
+  fmt,
+  shareFeedbackLink,
+  sessionStatus,
+  STATUS_STYLE,
+} from '../../shared/format';
+import { ScheduleFields, type Schedule } from '../../shared/ScheduleFields';
+import { ConfirmButton } from '../../shared/ui';
 import { aggregate, toCsv, type Answers } from './aggregate';
 import type { Question } from '../../shared/api';
 import { PieChart } from './PieChart';
@@ -29,6 +37,7 @@ export default function SessionReport() {
   const chartRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [pdfBusy, setPdfBusy] = useState(false);
   const [facultyDraft, setFacultyDraft] = useState<string[] | null>(null);
+  const [scheduleDraft, setScheduleDraft] = useState<Schedule | null>(null);
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['report', id],
@@ -46,7 +55,10 @@ export default function SessionReport() {
         }),
       ]);
       const submitted = new Set(submissions.map((s) => s.email));
-      const answers = result as unknown as { status: 'open' | 'too_few' | 'ready'; answers: Answers[] };
+      const answers = result as unknown as {
+        status: 'open' | 'too_few' | 'ready';
+        answers: Answers[];
+      };
       return {
         session,
         questions: session.questions as Question[],
@@ -62,14 +74,10 @@ export default function SessionReport() {
   const report = useMemo(() => data && aggregate(data.questions, data.answers), [data]);
 
   const reschedule = useMutation({
-    mutationFn: (form: FormData) =>
-      sessionsApi.reschedule(
-        id,
-        new Date(form.get('opens') as string).toISOString(),
-        new Date(form.get('closes') as string).toISOString(),
-      ),
+    mutationFn: (s: Schedule) => sessionsApi.reschedule(id, s.opens, s.closes),
     onSuccess: () => {
       toast.success('Schedule updated');
+      setScheduleDraft(null);
       void queryClient.invalidateQueries({ queryKey: ['report', id] });
       void queryClient.invalidateQueries({ queryKey: ['sessions'] });
     },
@@ -97,17 +105,27 @@ export default function SessionReport() {
   });
 
   if (isLoading) return <p className="muted">Loading…</p>;
-  if (error) return <p role="alert" className="text-red-600">{error.message}</p>;
+  if (error)
+    return (
+      <p role="alert" className="text-red-600">
+        {error.message}
+      </p>
+    );
   if (!data || !report) return <p className="card">Session not found, or not in your centre.</p>;
 
   const { session, roster, pending, resultStatus, submittedCount } = data;
   const status = sessionStatus(session);
   const closed = status === 'closed';
+  const schedule = scheduleDraft ?? { opens: session.opens_at, closes: session.closes_at };
   const moduleName = session.modules?.name ?? '';
   const courseCode = session.courses?.code ?? '';
   const centreName = session.centres?.name ?? '';
   const batchLabel = session.batches?.label ?? '';
-  const fileBase = `feedback_${courseCode}_${session.modules?.short_name || moduleName}_${centreName}_${batchLabel}`.replace(/[^\w-]+/g, '_');
+  const fileBase =
+    `feedback_${courseCode}_${session.modules?.short_name || moduleName}_${centreName}_${batchLabel}`.replace(
+      /[^\w-]+/g,
+      '_',
+    );
 
   const studentUrl = `${location.origin}${location.pathname}#/feedback/${id}`;
   const copyLink = async () => {
@@ -126,7 +144,8 @@ export default function SessionReport() {
         import('./ReportDocument'),
       ]);
       const chartImages: string[] = [];
-      for (const el of chartRefs.current) if (el) chartImages.push(await toPng(el, { pixelRatio: 2, backgroundColor: '#ffffff' }));
+      for (const el of chartRefs.current)
+        if (el) chartImages.push(await toPng(el, { pixelRatio: 2, backgroundColor: '#ffffff' }));
       const doc = (
         <ReportDocument
           title={`${courseCode} Module Feedback Report - ${moduleName}`}
@@ -134,7 +153,9 @@ export default function SessionReport() {
             ['Module Name', moduleName],
             ['Centre', centreName],
             ['Batch', batchLabel],
-            ...(session.faculty.length ? [['Faculty Name', session.faculty.join(', ')] as [string, string]] : []),
+            ...(session.faculty.length
+              ? [['Faculty Name', session.faculty.join(', ')] as [string, string]]
+              : []),
             ['Feedback window', `${fmt(session.opens_at)} to ${fmt(session.closes_at)}`],
             ['Total Feedback Count', `${report.total} of ${roster.length}`],
           ]}
@@ -150,11 +171,6 @@ export default function SessionReport() {
     }
   };
 
-  const onReschedule = (e: FormEvent<HTMLFormElement>) => {
-    e.preventDefault();
-    reschedule.mutate(new FormData(e.currentTarget));
-  };
-
   return (
     <div className="space-y-4">
       <Link to="/sessions" className="muted hover:underline">
@@ -164,16 +180,26 @@ export default function SessionReport() {
       <div className="card space-y-3">
         <div className="flex flex-wrap items-center gap-2">
           <h1 className="page-title">{moduleName}</h1>
-          <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLE[status]}`}>{status}</span>
+          <span className={`rounded-full px-2 py-0.5 text-xs ${STATUS_STYLE[status]}`}>
+            {status}
+          </span>
         </div>
         <p className="muted">
           {courseCode} · {centreName} · {batchLabel}
         </p>
         {facultyDraft ? (
           <div className="space-y-2 rounded-lg border border-stone-200 p-3">
-            <FacultyPicker centreId={session.centre_id} value={facultyDraft} onChange={setFacultyDraft} />
+            <FacultyPicker
+              centreId={session.centre_id}
+              value={facultyDraft}
+              onChange={setFacultyDraft}
+            />
             <div className="flex gap-2">
-              <button className="btn btn-primary" disabled={saveFaculty.isPending} onClick={() => saveFaculty.mutate(facultyDraft)}>
+              <button
+                className="btn btn-primary"
+                disabled={saveFaculty.isPending}
+                onClick={() => saveFaculty.mutate(facultyDraft)}
+              >
                 Save faculty
               </button>
               <button className="btn" onClick={() => setFacultyDraft(null)}>
@@ -183,8 +209,16 @@ export default function SessionReport() {
           </div>
         ) : (
           <p className="text-sm">
-            Faculty: {session.faculty.length ? session.faculty.join(', ') : <span className="text-amber-700">not set</span>}{' '}
-            <button className="text-brand-700 hover:underline" onClick={() => setFacultyDraft(session.faculty)}>
+            Faculty:{' '}
+            {session.faculty.length ? (
+              session.faculty.join(', ')
+            ) : (
+              <span className="text-amber-700">not set</span>
+            )}{' '}
+            <button
+              className="text-brand-700 hover:underline"
+              onClick={() => setFacultyDraft(session.faculty)}
+            >
               Edit
             </button>
           </p>
@@ -195,7 +229,10 @@ export default function SessionReport() {
               <button className="btn btn-primary" onClick={copyLink}>
                 <Clipboard size={16} aria-hidden /> Copy student link
               </button>
-              <button className="btn bg-emerald-700 text-white hover:bg-emerald-800 font-medium" onClick={shareLink}>
+              <button
+                className="btn bg-emerald-700 text-white hover:bg-emerald-800 font-medium"
+                onClick={shareLink}
+              >
                 <WhatsappLogo size={16} aria-hidden /> Share to WhatsApp
               </button>
             </>
@@ -209,7 +246,14 @@ export default function SessionReport() {
                 className="btn"
                 onClick={() =>
                   reportsApi.logDownload(id, 'csv').then(
-                    () => download(new Blob([String.fromCharCode(0xfeff) + toCsv(data.questions, data.answers)], { type: 'text/csv' }), `${fileBase}.csv`),
+                    () =>
+                      download(
+                        new Blob(
+                          [String.fromCharCode(0xfeff) + toCsv(data.questions, data.answers)],
+                          { type: 'text/csv' },
+                        ),
+                        `${fileBase}.csv`,
+                      ),
                     (e: Error) => toast.error(`CSV failed: ${e.message}`),
                   )
                 }
@@ -219,40 +263,67 @@ export default function SessionReport() {
             </>
           )}
           {submittedCount === 0 && (
-            <button className="btn btn-danger" onClick={() => confirm('Delete this session?') && remove.mutate()}>
+            <ConfirmButton
+              title="Delete this session?"
+              message="No student has submitted yet. The session and its link stop working."
+              confirmLabel="Delete session"
+              onConfirm={() => remove.mutate()}
+            >
               Delete
-            </button>
+            </ConfirmButton>
           )}
         </div>
         {resultStatus !== 'ready' && (
-          <p role="status" className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
-            <Warning size={18} weight="fill" className="mt-0.5 shrink-0 text-amber-600" aria-hidden />
+          <p
+            role="status"
+            className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900"
+          >
+            <Warning
+              size={18}
+              weight="fill"
+              className="mt-0.5 shrink-0 text-amber-600"
+              aria-hidden
+            />
             <span>
-              {resultStatus === 'open'
-                ? `Results and downloads become available after the session closes (${fmt(session.closes_at)}). This keeps answers anonymous.`
-                : <><strong>Results and downloads are not available:</strong> fewer than 3 students responded. This keeps answers anonymous.</>}
+              {resultStatus === 'open' ? (
+                `Results and downloads become available after the session closes (${fmt(session.closes_at)}). This keeps answers anonymous.`
+              ) : (
+                <>
+                  <strong>Results and downloads are not available:</strong> fewer than 3 students
+                  responded. This keeps answers anonymous.
+                </>
+              )}
             </span>
           </p>
         )}
         {closed ? (
           <p className="muted border-t border-stone-100 pt-3">
-            Ran {fmt(session.opens_at)} to {fmt(session.closes_at)}. The schedule is final after a session closes.
+            Ran {fmt(session.opens_at)} to {fmt(session.closes_at)}. The schedule is final after a
+            session closes.
           </p>
         ) : (
-          <form onSubmit={onReschedule} className="flex flex-wrap items-end gap-2 border-t border-stone-100 pt-3">
-            <div>
-              <label className="label" htmlFor="opens">Opens</label>
-              <input id="opens" name="opens" type="datetime-local" className="input" required defaultValue={toLocalInput(session.opens_at)} />
+          <div className="space-y-3 border-t border-stone-100 pt-3">
+            <ScheduleFields value={schedule} onChange={setScheduleDraft} closeNow />
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                className="btn btn-primary"
+                disabled={
+                  !scheduleDraft ||
+                  reschedule.isPending ||
+                  Date.parse(schedule.closes) <= Date.parse(schedule.opens)
+                }
+                onClick={() => scheduleDraft && reschedule.mutate(scheduleDraft)}
+              >
+                Update schedule
+              </button>
+              {scheduleDraft && (
+                <button className="btn" onClick={() => setScheduleDraft(null)}>
+                  Undo changes
+                </button>
+              )}
+              <span className="muted">After a session closes, its schedule is final.</span>
             </div>
-            <div>
-              <label className="label" htmlFor="closes">Closes</label>
-              <input id="closes" name="closes" type="datetime-local" className="input" required defaultValue={toLocalInput(session.closes_at)} />
-            </div>
-            <button className="btn" disabled={reschedule.isPending}>
-              Update schedule
-            </button>
-            <span className="muted">Set Closes to now to end early. After closing, the schedule is final.</span>
-          </form>
+          </div>
         )}
       </div>
 
@@ -262,7 +333,9 @@ export default function SessionReport() {
         </p>
         {pending.length > 0 && (
           <details className="mt-2">
-            <summary className="cursor-pointer text-sm text-brand-700">{pending.length} not submitted yet</summary>
+            <summary className="cursor-pointer text-sm text-brand-700">
+              {pending.length} not submitted yet
+            </summary>
             <ul className="mt-2 columns-1 text-sm sm:columns-2">
               {pending.map((s) => (
                 <li key={s.email}>

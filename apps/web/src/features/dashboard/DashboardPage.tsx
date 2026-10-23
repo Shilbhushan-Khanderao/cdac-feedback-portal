@@ -1,7 +1,19 @@
+import { Choice } from '../../shared/ui';
 import { useMemo, useState, type ReactNode } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
-import { Bar, BarChart, CartesianGrid, LabelList, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
+import {
+  Bar,
+  BarChart,
+  CartesianGrid,
+  LabelList,
+  Line,
+  LineChart,
+  ResponsiveContainer,
+  Tooltip,
+  XAxis,
+  YAxis,
+} from 'recharts';
 import { useMe } from '../../app/auth';
 import { fmt, sessionStatus } from '../../shared/format';
 import { CATEGORICAL, INK, RATING_COLORS, RATING_ORDER, RATING_SCORE } from '../../shared/palette';
@@ -33,7 +45,13 @@ export function DashboardPage() {
   const distinct = (key: 'batch' | 'course' | 'centre') =>
     [...new Map((data ?? []).map((r) => [r[key], r[`${key}` as const]])).values()].sort();
   const rows = useMemo(
-    () => (data ?? []).filter((r) => (!batch || r.batch === batch) && (!course || r.course === course) && (!centre || r.centre === centre)),
+    () =>
+      (data ?? []).filter(
+        (r) =>
+          (!batch || r.batch === batch) &&
+          (!course || r.course === course) &&
+          (!centre || r.centre === centre),
+      ),
     [data, batch, course, centre],
   );
   const ready = rows.filter((r) => r.ratings);
@@ -47,7 +65,10 @@ export function DashboardPage() {
   const byCentre = new Set(rows.map((r) => r.centre)).size > 1;
   const rateGroups = group(rows, (r) => (byCentre ? r.centre : r.module)).map(([name, g]) => ({
     name,
-    value: pct(g.reduce((a, r) => a + r.submitted, 0), g.reduce((a, r) => a + r.students, 0)),
+    value: pct(
+      g.reduce((a, r) => a + r.submitted, 0),
+      g.reduce((a, r) => a + r.students, 0),
+    ),
   }));
   const moduleScores = group(ready, (r) => r.module)
     .map(([name, g]) => ({ name, value: round1(mean(merge(g))), n: g.length }))
@@ -60,14 +81,23 @@ export function DashboardPage() {
     .sort((a, b) => b.value - a.value);
   const trend = [...ready]
     .sort((a, b) => a.closes_at.localeCompare(b.closes_at))
-    .map((r) => ({ name: r.module, date: new Date(r.closes_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }), value: round1(mean(r.ratings!)) }));
+    .map((r) => ({
+      name: r.module,
+      date: new Date(r.closes_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
+      value: round1(mean(r.ratings!)),
+    }));
   const attention = rows
     .filter((r) => sessionStatus(r) === 'open' && r.students > 0 && r.submitted / r.students < 0.5)
     .sort((a, b) => a.closes_at.localeCompare(b.closes_at))
     .slice(0, 6);
 
   if (isLoading) return <p className="muted">Loading dashboard…</p>;
-  if (error) return <p role="alert" className="text-red-700">{error.message}</p>;
+  if (error)
+    return (
+      <p role="alert" className="text-red-700">
+        {error.message}
+      </p>
+    );
 
   return (
     <div className="space-y-6">
@@ -75,12 +105,33 @@ export function DashboardPage() {
         <div className="mr-auto">
           <h1 className="page-title">Overview</h1>
           <p className="muted">
-            {me.role === 'admin' ? 'All centres' : 'Your centre'} · ratings appear after a session closes with at least 3 responses
+            {me.role === 'admin' ? 'All centres' : 'Your centre'} · ratings appear after a session
+            closes with at least 3 responses
           </p>
         </div>
-        <Filter label="Batch" all="All batches" value={batch} onChange={setBatch} options={distinct('batch')} />
-        <Filter label="Course" all="All courses" value={course} onChange={setCourse} options={distinct('course')} />
-        {me.role === 'admin' && <Filter label="Centre" all="All centres" value={centre} onChange={setCentre} options={distinct('centre')} />}
+        <Filter
+          label="Batch"
+          all="All batches"
+          value={batch}
+          onChange={setBatch}
+          options={distinct('batch')}
+        />
+        <Filter
+          label="Course"
+          all="All courses"
+          value={course}
+          onChange={setCourse}
+          options={distinct('course')}
+        />
+        {me.role === 'admin' && (
+          <Filter
+            label="Centre"
+            all="All centres"
+            value={centre}
+            onChange={setCentre}
+            options={distinct('centre')}
+          />
+        )}
       </div>
 
       {rows.length === 0 ? (
@@ -100,21 +151,42 @@ export function DashboardPage() {
             submittedCount={submitted}
             studentsCount={students}
             avgRating={ready.length ? `${round1(mean(all))} / 5` : '–'}
-            avgRatingHint={ready.length ? `${total(all)} answers, ${ready.length} sessions` : 'No closed sessions yet'}
+            avgRatingHint={
+              ready.length
+                ? `${total(all)} answers, ${ready.length} sessions`
+                : 'No closed sessions yet'
+            }
             awaitingCount={awaiting}
           />
 
           <div className="grid gap-4 lg:grid-cols-2">
-            <Panel title="Response rate" sub={byCentre ? 'By centre' : 'By module'} empty={!rateGroups.length}>
+            <Panel
+              title="Response rate"
+              sub={byCentre ? 'By centre' : 'By module'}
+              empty={!rateGroups.length}
+            >
               <HBar data={rateGroups} max={100} suffix="%" color={CATEGORICAL[0]} />
             </Panel>
-            <Panel title="Overall ratings" sub="Share of all answers on the Excellent to Poor scale" empty={!ready.length} emptyText="Appears after the first session closes with 3+ responses.">
+            <Panel
+              title="Overall ratings"
+              sub="Share of all answers on the Excellent to Poor scale"
+              empty={!ready.length}
+              emptyText="Appears after the first session closes with 3+ responses."
+            >
               <Distribution counts={all} />
             </Panel>
-            <Panel title="Average rating by module" sub="Out of 5, closed sessions only" empty={!moduleScores.length}>
+            <Panel
+              title="Average rating by module"
+              sub="Out of 5, closed sessions only"
+              empty={!moduleScores.length}
+            >
               <HBar data={moduleScores} max={5} color={CATEGORICAL[0]} />
             </Panel>
-            <Panel title="Average rating by faculty" sub="Out of 5, across their closed sessions" empty={!facultyScores.length}>
+            <Panel
+              title="Average rating by faculty"
+              sub="Out of 5, across their closed sessions"
+              empty={!facultyScores.length}
+            >
               <HBar data={facultyScores} max={5} color={CATEGORICAL[0]} />
             </Panel>
           </div>
@@ -124,10 +196,29 @@ export function DashboardPage() {
               <ResponsiveContainer width="100%" height={220}>
                 <LineChart data={trend} margin={{ top: 8, right: 16, bottom: 0, left: -16 }}>
                   <CartesianGrid stroke={INK.grid} vertical={false} />
-                  <XAxis dataKey="date" tick={{ fill: INK.muted, fontSize: 12 }} axisLine={{ stroke: INK.grid }} tickLine={false} />
-                  <YAxis domain={[1, 5]} tick={{ fill: INK.muted, fontSize: 12 }} axisLine={false} tickLine={false} />
-                  <Tooltip formatter={(v) => [`${v} / 5`, 'Average']} labelFormatter={(_, p) => p?.[0]?.payload.name ?? ''} />
-                  <Line type="monotone" dataKey="value" stroke={CATEGORICAL[0]} strokeWidth={2} dot={{ r: 4, fill: CATEGORICAL[0], stroke: '#fff', strokeWidth: 2 }} />
+                  <XAxis
+                    dataKey="date"
+                    tick={{ fill: INK.muted, fontSize: 12 }}
+                    axisLine={{ stroke: INK.grid }}
+                    tickLine={false}
+                  />
+                  <YAxis
+                    domain={[1, 5]}
+                    tick={{ fill: INK.muted, fontSize: 12 }}
+                    axisLine={false}
+                    tickLine={false}
+                  />
+                  <Tooltip
+                    formatter={(v) => [`${v} / 5`, 'Average']}
+                    labelFormatter={(_, p) => p?.[0]?.payload.name ?? ''}
+                  />
+                  <Line
+                    type="monotone"
+                    dataKey="value"
+                    stroke={CATEGORICAL[0]}
+                    strokeWidth={2}
+                    dot={{ r: 4, fill: CATEGORICAL[0], stroke: '#fff', strokeWidth: 2 }}
+                  />
                 </LineChart>
               </ResponsiveContainer>
             </Panel>
@@ -136,15 +227,23 @@ export function DashboardPage() {
           {attention.length > 0 && (
             <section className="card">
               <h2 className="section-title">Needs attention</h2>
-              <p className="muted mb-2">Open sessions where fewer than half of the students have responded.</p>
+              <p className="muted mb-2">
+                Open sessions where fewer than half of the students have responded.
+              </p>
               <ul className="divide-y divide-stone-100">
                 {attention.map((r) => (
                   <li key={r.id}>
-                    <Link to={`/sessions/${r.id}`} className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 hover:bg-stone-50">
+                    <Link
+                      to={`/sessions/${r.id}`}
+                      className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 hover:bg-stone-50"
+                    >
                       <span className="font-medium">{r.module}</span>
-                      <span className="muted">{r.centre} · {r.course}</span>
+                      <span className="muted">
+                        {r.centre} · {r.course}
+                      </span>
                       <span className="num ml-auto text-sm text-amber-800">
-                        {r.submitted}/{r.students} ({pct(r.submitted, r.students)}%) · closes {fmt(r.closes_at)}
+                        {r.submitted}/{r.students} ({pct(r.submitted, r.students)}%) · closes{' '}
+                        {fmt(r.closes_at)}
                       </span>
                     </Link>
                   </li>
@@ -165,42 +264,107 @@ function group<T>(items: T[], key: (t: T) => string): [string, T[]][] {
 }
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-function Filter({ label, all, value, onChange, options }: { label: string; all: string; value: string; onChange: (v: string) => void; options: string[] }) {
+function Filter({
+  label,
+  all,
+  value,
+  onChange,
+  options,
+}: {
+  label: string;
+  all: string;
+  value: string;
+  onChange: (v: string) => void;
+  options: string[];
+}) {
   return (
-    <label className="text-sm">
-      <span className="sr-only">{label}</span>
-      <select className="input w-auto" value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
-        <option value="">{all}</option>
-        {options.map((o) => (
-          <option key={o}>{o}</option>
-        ))}
-      </select>
-    </label>
+    <Choice
+      label={label}
+      hideLabel
+      className="w-full sm:w-48"
+      value={value}
+      onChange={onChange}
+      emptyLabel={all}
+      options={options.map((o) => ({ value: o, label: o }))}
+    />
   );
 }
 
-
-
-function Panel({ title, sub, empty, emptyText, children }: { title: string; sub?: string; empty?: boolean; emptyText?: string; children: ReactNode }) {
+function Panel({
+  title,
+  sub,
+  empty,
+  emptyText,
+  children,
+}: {
+  title: string;
+  sub?: string;
+  empty?: boolean;
+  emptyText?: string;
+  children: ReactNode;
+}) {
   return (
     <section className="card">
       <h2 className="card-title">{title}</h2>
       {sub && <p className="muted mb-3">{sub}</p>}
-      {empty ? <p className="muted py-8 text-center">{emptyText ?? 'No data for this selection yet.'}</p> : children}
+      {empty ? (
+        <p className="muted py-8 text-center">{emptyText ?? 'No data for this selection yet.'}</p>
+      ) : (
+        children
+      )}
     </section>
   );
 }
 
 /** Horizontal bars with the value written at the end of each bar. */
-function HBar({ data, max, suffix = '', color }: { data: { name: string; value: number }[]; max: number; suffix?: string; color: string }) {
+function HBar({
+  data,
+  max,
+  suffix = '',
+  color,
+}: {
+  data: { name: string; value: number }[];
+  max: number;
+  suffix?: string;
+  color: string;
+}) {
   return (
     <ResponsiveContainer width="100%" height={Math.max(120, data.length * 36 + 16)}>
-      <BarChart data={data} layout="vertical" margin={{ top: 0, right: 44, bottom: 0, left: 0 }} barCategoryGap={8}>
+      <BarChart
+        data={data}
+        layout="vertical"
+        margin={{ top: 0, right: 44, bottom: 0, left: 0 }}
+        barCategoryGap={8}
+      >
         <XAxis type="number" domain={[0, max]} hide />
-        <YAxis type="category" dataKey="name" width={140} tick={{ fill: INK.secondary, fontSize: 12 }} axisLine={false} tickLine={false} interval={0} tickFormatter={(n: string) => (n.length > 22 ? `${n.slice(0, 21)}…` : n)} />
-        <Tooltip cursor={{ fill: '#f5f5f4' }} formatter={(v, _n, p) => [`${v}${suffix}`, p.payload.name]} separator=": " />
-        <Bar dataKey="value" fill={color} radius={[0, 4, 4, 0]} barSize={18} background={{ fill: '#f5f5f4', radius: 4 }}>
-          <LabelList dataKey="value" position="right" formatter={(v) => `${v}${suffix}`} style={{ fill: INK.primary, fontSize: 12, fontWeight: 600 }} />
+        <YAxis
+          type="category"
+          dataKey="name"
+          width={140}
+          tick={{ fill: INK.secondary, fontSize: 12 }}
+          axisLine={false}
+          tickLine={false}
+          interval={0}
+          tickFormatter={(n: string) => (n.length > 22 ? `${n.slice(0, 21)}…` : n)}
+        />
+        <Tooltip
+          cursor={{ fill: '#f5f5f4' }}
+          formatter={(v, _n, p) => [`${v}${suffix}`, p.payload.name]}
+          separator=": "
+        />
+        <Bar
+          dataKey="value"
+          fill={color}
+          radius={[0, 4, 4, 0]}
+          barSize={18}
+          background={{ fill: '#f5f5f4', radius: 4 }}
+        >
+          <LabelList
+            dataKey="value"
+            position="right"
+            formatter={(v) => `${v}${suffix}`}
+            style={{ fill: INK.primary, fontSize: 12, fontWeight: 600 }}
+          />
         </Bar>
       </BarChart>
     </ResponsiveContainer>
@@ -212,9 +376,19 @@ function Distribution({ counts }: { counts: Record<string, number> }) {
   const n = total(counts);
   return (
     <div>
-      <div className="flex h-8 w-full gap-0.5 overflow-hidden rounded-md" role="img" aria-label={RATING_ORDER.map((k) => `${k} ${pct(counts[k] ?? 0, n)}%`).join(', ')}>
+      <div
+        className="flex h-8 w-full gap-0.5 overflow-hidden rounded-md"
+        role="img"
+        aria-label={RATING_ORDER.map((k) => `${k} ${pct(counts[k] ?? 0, n)}%`).join(', ')}
+      >
         {RATING_ORDER.map((k) =>
-          counts[k] ? <div key={k} style={{ width: `${(100 * counts[k]) / n}%`, background: RATING_COLORS[k] }} title={`${k}: ${counts[k]}`} /> : null,
+          counts[k] ? (
+            <div
+              key={k}
+              style={{ width: `${(100 * counts[k]) / n}%`, background: RATING_COLORS[k] }}
+              title={`${k}: ${counts[k]}`}
+            />
+          ) : null,
         )}
       </div>
       <ul className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-1 xl:grid-cols-2">

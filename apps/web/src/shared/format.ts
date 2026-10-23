@@ -1,6 +1,9 @@
 type Status = 'upcoming' | 'open' | 'closed';
 
-export function sessionStatus(s: { opens_at: string; closes_at: string }, now = Date.now()): Status {
+export function sessionStatus(
+  s: { opens_at: string; closes_at: string },
+  now = Date.now(),
+): Status {
   if (now < Date.parse(s.opens_at)) return 'upcoming';
   return now > Date.parse(s.closes_at) ? 'closed' : 'open';
 }
@@ -14,6 +17,18 @@ export function toLocalInput(iso: string | Date): string {
   return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16);
 }
 
+/** "3 days", "1 h 30 min", "45 min"; null when the window is empty or negative. */
+export function durationText(ms: number): string | null {
+  const mins = Math.round(ms / 60000);
+  if (mins <= 0) return null;
+  const d = Math.floor(mins / 1440);
+  const h = Math.floor((mins % 1440) / 60);
+  const m = mins % 60;
+  return [d && `${d} day${d > 1 ? 's' : ''}`, h && `${h} h`, m && `${m} min`]
+    .filter(Boolean)
+    .join(' ');
+}
+
 export const STATUS_STYLE: Record<Status, string> = {
   upcoming: 'bg-amber-50 text-amber-700',
   open: 'bg-green-50 text-green-700',
@@ -22,9 +37,15 @@ export const STATUS_STYLE: Record<Status, string> = {
 
 /** Turn rate-limit / overload errors into advice a student can act on; pass others through. */
 export function friendlyError(message: string): string {
-  if (/<\s*(html|!doctype)/i.test(message)) return 'The service is unavailable. Wait a few seconds and try again.';
-  if (/rate limit|too many requests/i.test(message)) return 'Many students are signing in right now. Wait one minute and try again.';
-  if (/service unavailable|connection pool|timed out|failed to fetch|fetch failed|network/i.test(message)) {
+  if (/<\s*(html|!doctype)/i.test(message))
+    return 'The service is unavailable. Wait a few seconds and try again.';
+  if (/rate limit|too many requests/i.test(message))
+    return 'Many students are signing in right now. Wait one minute and try again.';
+  if (
+    /service unavailable|connection pool|timed out|failed to fetch|fetch failed|network/i.test(
+      message,
+    )
+  ) {
     return 'The server is busy. Wait a few seconds and try again. Your answers are kept.';
   }
   return message;
@@ -37,8 +58,10 @@ export function friendlyError(message: string): string {
 const LOGIN_ERRORS: Record<string, string> = {
   'Sign in failed. Please try again.': 'Sign-in failed. Please try again.',
   'Sign in failed': 'Sign-in failed. Please try again.',
-  'Your Google email address is not verified.': 'Your Google account email is not verified. Verify it with Google and try again.',
-  'Your email is not on the feedback roster. Contact your course coordinator.': 'Your email is not on the feedback roster. Contact your course coordinator.',
+  'Your Google email address is not verified.':
+    'Your Google account email is not verified. Verify it with Google and try again.',
+  'Your email is not on the feedback roster. Contact your course coordinator.':
+    'Your email is not on the feedback roster. Contact your course coordinator.',
 };
 const GENERIC_LOGIN_ERROR = 'Sign-in failed. Please try again.';
 
@@ -64,5 +87,9 @@ export async function shareFeedbackLink(url: string, moduleName: string) {
       if ((e as Error).name === 'AbortError') return;
     }
   }
-  window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(`${text} ${url}`)}`, '_blank', 'noopener');
+  window.open(
+    `https://api.whatsapp.com/send?text=${encodeURIComponent(`${text} ${url}`)}`,
+    '_blank',
+    'noopener',
+  );
 }
