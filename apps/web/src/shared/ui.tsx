@@ -29,9 +29,11 @@ import { CalendarBlank, CaretDown } from '@phosphor-icons/react';
 
 export type Option = { value: string; label: string };
 
-// Lists longer than this get a search box; shorter ones open as a plain list, which on a phone
-// does not pop up the keyboard.
+// On a mouse/keyboard screen, lists longer than this get type-to-search. Touch screens always get
+// the plain scrollable list: React Aria does not open a search box's list on tap (it waits for
+// typing), and a list needs no on-screen keyboard.
 const SEARCH_FROM = 8;
+const touch = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
 
 const listItem =
   'cursor-pointer rounded-md px-3 py-2.5 text-sm outline-none data-focused:bg-brand-50 data-selected:font-semibold data-selected:text-brand-800 data-disabled:opacity-50';
@@ -84,7 +86,7 @@ export function Choice({
     </Popover>
   );
 
-  if (options.length > SEARCH_FROM) {
+  if (options.length > SEARCH_FROM && !touch) {
     return (
       <ComboBox
         className={className}
