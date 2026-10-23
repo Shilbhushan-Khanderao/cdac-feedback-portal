@@ -47,3 +47,5 @@ renewal, rotation): [docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md](docs/ops/PRODUCTION
 ## Status
 
 Security posture, test results and VAPT status are tracked in `docs/security/`. Items marked "target" there are not yet implemented.
+
+Planned next version (comment themes, abuse filter, personal-detail masking, on-server AI summaries): [docs/roadmap/NEXT-VERSION-COMMENT-INSIGHTS.md](docs/roadmap/NEXT-VERSION-COMMENT-INSIGHTS.md).
