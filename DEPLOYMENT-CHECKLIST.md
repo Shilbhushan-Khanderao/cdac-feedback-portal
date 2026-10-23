@@ -57,11 +57,13 @@ machinery nobody asked for:
   orchestrated (Swarm/K8s, where secrets and mTLS come close to free) both change this calculus.
 
 ## Logging and retention
-`docker-compose.yml`'s `json-file` driver is sized generously (`50m` x `100` files = 5GB per
-container; see the `x-logging` comment for the request-rate math) so routine local rotation
-approximates the CERT-In 180-day floor instead of rotating away in hours like the previous
-10MB x 5 setting. This is still **local rotation on this one host's disk**, not durable
-retention: it is bounded by actual disk usage (a traffic spike fills it faster), it is lost if
-the host's disk is lost, and nothing here copies logs off-host. Durable, audit-grade 180-day
-retention needs log shipping (rsyslog, Loki, or a SIEM) to a separate store — that is a real,
-not-yet-scheduled task, not something achievable by tuning `docker-compose.yml` alone.
+Containers log to the host journal (`journald` driver in `docker-compose.yml`), so a redeploy no
+longer deletes logs. `deploy/offsite-copy.sh`, run daily from the operator's crontab, exports each
+finished day's container logs (encrypt-then-MAC, same key as DB backups) and copies new DB backups
+to the shared drive, keeping 180 days there (CERT-In). It catches up to 7 missed days if the share
+was down, as long as the host journal still holds them. The journal itself is capped by the host's
+journald config, so a log flood from another app on this shared host could rotate entries out
+before the daily export; real-time shipping to a SIEM would close that if one becomes available.
+Application audit events live in `audit_logs` (append-only, in every DB backup).
+- [ ] Crontab has the `offsite-copy.sh` entry; `~/cdac-offsite-copy.log` shows a recent `[offsite] done`.
+- [ ] Written confirmation from IT that the host's NTP sources trace to NPL or NIC (CERT-In).

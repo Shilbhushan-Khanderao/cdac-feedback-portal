@@ -1,5 +1,5 @@
 import { withUser } from '../../db/pool.js';
-import { audit } from '../../shared/audit.js';
+import { audit, maskEmail } from '../../shared/audit.js';
 import { forbidden } from '../../shared/errors.js';
 import type { Student } from './schema.js';
 
@@ -57,9 +57,9 @@ export function upsertStudents(actor: string, ip: string, students: Student[]) {
     }
 
     // CMP-6: record which emails were touched (and the row count) so a cohort move or
-    // PII overwrite can be reconstructed later; emails already flow through this route's
-    // own logs/payload, so listing them here isn't a new PII exposure.
-    await audit({ actor, action: 'ROSTER_UPLOAD', entityType: 'student_roster', details: { count: inserted, emails }, ip }, client);
+    // PII overwrite can be traced later. Masked: audit_logs is append-only, so a full
+    // address stored here could never be erased on a DPDP request.
+    await audit({ actor, action: 'ROSTER_UPLOAD', entityType: 'student_roster', details: { count: inserted, emails: emails.map(maskEmail) }, ip }, client);
     return inserted;
   });
 }

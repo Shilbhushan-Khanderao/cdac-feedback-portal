@@ -119,6 +119,7 @@ export default function SessionReport() {
   const downloadPdf = async () => {
     setPdfBusy(true);
     try {
+      await reportsApi.logDownload(id, 'pdf');
       // react-pdf is large: load it only when a PDF is requested.
       const [{ pdf }, { ReportDocument }] = await Promise.all([
         import('@react-pdf/renderer'),
@@ -206,7 +207,12 @@ export default function SessionReport() {
               </button>
               <button
                 className="btn"
-                onClick={() => download(new Blob([String.fromCharCode(0xfeff) + toCsv(data.questions, data.answers)], { type: 'text/csv' }), `${fileBase}.csv`)}
+                onClick={() =>
+                  reportsApi.logDownload(id, 'csv').then(
+                    () => download(new Blob([String.fromCharCode(0xfeff) + toCsv(data.questions, data.answers)], { type: 'text/csv' }), `${fileBase}.csv`),
+                    (e: Error) => toast.error(`CSV failed: ${e.message}`),
+                  )
+                }
               >
                 Download CSV
               </button>

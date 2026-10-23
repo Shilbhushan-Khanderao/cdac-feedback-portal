@@ -68,6 +68,30 @@ describe('Government Norms & Regulatory Compliance Suite (CERT-In, DPDP Act 2023
       expect(data.total).toBe(0);
     });
 
+    it('Report downloads are audited per format, and only for sessions in scope', async () => {
+      const ccCookie = await loginAs('cc@test.local');
+      const post = (id: string, format: string) =>
+        app.inject({ method: 'POST', url: `/api/reports/${id}/download`, payload: { format }, headers: { cookie: ccCookie } });
+
+      expect((await post('00000000-0000-0000-0000-0000000000c2', 'csv')).statusCode).toBe(200);
+      const row = await query(
+        `SELECT details, ip_address FROM public.audit_logs
+          WHERE action = 'REPORT_DOWNLOAD' AND actor_email = 'cc@test.local' AND entity_id = '00000000-0000-0000-0000-0000000000c2'
+          ORDER BY logged_at DESC LIMIT 1`
+      );
+      expect(row.rows[0].details).toEqual({ format: 'csv' });
+
+      expect((await post('00000000-0000-0000-0000-0000000000c2', 'xlsx')).statusCode).toBe(400);
+      // An ATC coordinator cannot see Mumbai session c2 under RLS.
+      const atc = await app.inject({
+        method: 'POST',
+        url: '/api/reports/00000000-0000-0000-0000-0000000000c2/download',
+        payload: { format: 'pdf' },
+        headers: { cookie: await loginAs('cc.atc@test.local') },
+      });
+      expect(atc.statusCode).toBe(404);
+    });
+
     it('Dashboard Privacy: Aggregated ratings are withheld for sessions under k=3 threshold', async () => {
       const ccCookie = await loginAs('cc@test.local');
       const res = await app.inject({

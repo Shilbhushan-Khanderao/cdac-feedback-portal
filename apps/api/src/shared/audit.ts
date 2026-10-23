@@ -17,3 +17,6 @@ export async function audit(e: AuditEvent, client?: pg.PoolClient): Promise<void
   const params = [e.actor, e.action, e.entityType, e.entityId ?? null, JSON.stringify(e.details ?? {}), e.ip ?? null];
   await (client ? client.query(sql, params) : query(sql, params));
 }
+
+/** "student@cdac.in" -> "st***@cdac.in": enough to trace a roster change, not a full identifier. */
+export const maskEmail = (email: string) => email.replace(/^(.{1,2})[^@]*@/, '$1***@');

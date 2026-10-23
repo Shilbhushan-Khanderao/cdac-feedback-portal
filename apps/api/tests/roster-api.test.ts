@@ -173,6 +173,7 @@ describe('Roster Management & CSV Ingestion Integration Tests', () => {
     expect(auditCheck.rows.length).toBe(1);
     expect(auditCheck.rows[0].action).toBe('ROSTER_UPLOAD');
     expect(auditCheck.rows[0].details.count).toBe(1);
+    expect(auditCheck.rows[0].details.emails).toEqual(['ne***@acts.cdac.in']);
 
     // Clean up
     await query('DELETE FROM public.student_roster WHERE email = $1', [testEmail]);

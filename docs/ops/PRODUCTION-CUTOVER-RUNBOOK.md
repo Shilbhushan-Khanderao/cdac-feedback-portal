@@ -11,7 +11,13 @@
 | nginx | TLS :443, redirect :80, SPA | certs from `deploy/nginx/certs/` |
 | backup | cron 02:00, volume `backups_data` | logs to container stdout |
 
-Logs: `$DC logs -f api` (all services use json-file, 50 MB x 100 files = 5 GB/container; still local-host rotation, not durable 180-day retention — see `DEPLOYMENT-CHECKLIST.md`'s Logging section).
+Logs: `$DC logs -f api`. Containers log to the host journal (`journald` driver), so logs survive container recreation. `deploy/offsite-copy.sh` (host cron, daily 08:00) exports each finished day's logs, encrypted, plus new DB backups to `/mnt/shared/cdac-feedback/{logs,db}` and keeps 180 days there. Its output goes to `~/cdac-offsite-copy.log`; check it after go-live.
+
+Audit log review (sign-ins, failed sign-ins, access denied, report views and downloads, admin changes):
+
+```bash
+$DC exec db sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select logged_at, actor_email, action, entity_type, entity_id, ip_address from audit_logs where logged_at > now() - interval '"'"'7 days'"'"' order by logged_at desc"'
+```
 
 ## Deploy / update
 ```bash
