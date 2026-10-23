@@ -22,7 +22,7 @@ $DC ps
 Rollback: `git checkout <previous tag>` and `$DC up -d --build`. Migrations are forward-only; for a bad migration restore from backup (below).
 
 ## First admin
-`$DC run --rm api node dist/db/bootstrap-admin.js <email> "<name>"`
+`$DC run --rm migrate node dist/db/bootstrap-admin.js <email> "<name>"`
 
 ## TLS renewal
 Replace `fullchain.pem` / `privkey.pem` in `deploy/nginx/certs/`, then `$DC restart nginx`.

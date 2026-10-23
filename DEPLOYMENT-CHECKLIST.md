@@ -15,7 +15,7 @@ Hostname placeholder: `feedback.example.in`. Compose file: `deploy/docker-compos
 ## Deploy
 - [ ] `$DC up -d --build` (builds API + SPA/nginx; `migrate` runs once before `api`).
 - [ ] `$DC ps`: db, api, nginx healthy; `migrate` exited 0.
-- [ ] Bootstrap first admin: `$DC run --rm api node dist/db/bootstrap-admin.js <email> "<name>"`.
+- [ ] Bootstrap first admin: `$DC run --rm migrate node dist/db/bootstrap-admin.js <email> "<name>"`.
 - [ ] No seed data loaded: `$DC exec db psql -U $POSTGRES_USER $POSTGRES_DB -c "select count(*) from student_roster"` is 0 before real roster upload.
 
 ## Verify

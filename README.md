@@ -30,7 +30,7 @@ npx tsc -b apps/web && npm test && npm run server:test
 ```bash
 DC="docker compose --env-file deploy/.env -f deploy/docker-compose.yml"
 $DC up -d --build
-$DC run --rm api node dist/db/bootstrap-admin.js admin@example.in "Admin Name"
+$DC run --rm migrate node dist/db/bootstrap-admin.js admin@example.in "Admin Name"
 ```
 
 `migrate` runs automatically before `api`. Checklist form for a live cutover:

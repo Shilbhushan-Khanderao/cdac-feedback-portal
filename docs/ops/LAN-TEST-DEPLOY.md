@@ -25,6 +25,13 @@ openssl req -x509 -newkey rsa:2048 -nodes -days 90 \
   -subj "/CN=feedback.lan.example" -addext "subjectAltName=DNS:feedback.lan.example"
 ```
 
+nginx runs as root with every capability dropped, so it cannot read a key owned by your user with mode 600 (`Permission denied` on `privkey.pem`). Give root ownership, keeping your group able to read it:
+
+```bash
+docker run --rm -v "$PWD/deploy/nginx/certs:/c" --entrypoint sh nginx:1.27-alpine \
+  -c "chown 0:$(id -g) /c/privkey.pem && chmod 640 /c/privkey.pem"
+```
+
 ## 3. Configure `deploy/.env`
 
 ```bash
@@ -61,7 +68,7 @@ curl -k https://<hostname>/healthz
 Nobody can sign in until someone is on `staff_roster`. The Google account must be the one used to sign in:
 
 ```bash
-$DC run --rm api node dist/db/bootstrap-admin.js admin@example.in "Admin Name"
+$DC run --rm migrate node dist/db/bootstrap-admin.js admin@example.in "Admin Name"
 ```
 
 The admin then adds centres, courses, batches, CCs and student rosters in the UI.
