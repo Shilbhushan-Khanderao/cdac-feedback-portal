@@ -42,9 +42,9 @@ Subject: Incident Report: Cyber Incident on C-DAC Feedback Portal
 Personal-data breach: also follow the DPDP Act notification duties through the C-DAC data protection officer.
 
 ## 4. Logs and time
-- Application and nginx logs go to container stdout (json-file, rotated 10 MB x 5 per service). Rotation means older entries are lost: forward them to the campus log server for 180-day retention (target; not configured by this repo).
+- Application, nginx, Postgres and backup logs go to the host systemd journal (`journald` log driver), so they survive container recreation. `deploy/offsite-copy.sh` (daily host cron) exports each day's logs, encrypted, to the network share and keeps 180 days there. To preserve evidence during an incident, also export the current day by hand: `journalctl CONTAINER_NAME=cdac-feedback-nginx-1 CONTAINER_NAME=cdac-feedback-api-1 --since today -o short-iso-precise > evidence.log`.
 - `public.audit_logs` records admin actions and logins. It is append-only **by DB enforcement** (`trg_audit_logs_no_change`/`trg_audit_logs_no_truncate`, `apps/api/src/db/migrations/002_security.sql:88-104`), blocking UPDATE/DELETE/TRUNCATE for every role including the table owner. The only sanctioned exception is `apps/api/src/db/retention-purge.ts`, run manually by an operator, which disables/re-enables the trigger inside one transaction and leaves its own `RETENTION_PURGE` row. This is not the same as cryptographic tamper-evidence (no hash chain, no off-host copy), and a Postgres superuser could still drop the trigger outright.
-- Encrypted DB backups are kept 180 days in volume `backups_data` (and offsite if `BACKUP_OFFSITE_TARGET` is set).
+- Encrypted DB backups are kept 180 days in volume `backups_data` and on the network share (`deploy/offsite-copy.sh`).
 - Host clock must sync to NPL/NIC NTP: `samay1.nplindia.org`, `samay2.nplindia.org`, `time.nic.in`.
 
 ## 5. Recovery

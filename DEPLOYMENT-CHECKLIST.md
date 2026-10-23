@@ -1,15 +1,20 @@
 # Deployment Checklist
 
+Tick-list for a live cutover. Each item is explained step by step in
+[docs/ops/DEPLOYMENT-GUIDE.md](docs/ops/DEPLOYMENT-GUIDE.md).
+
 Hostname placeholder: `feedback.example.in`. Compose file: `deploy/docker-compose.yml`. All commands from repo root; define once:
 `DC="docker compose --env-file deploy/.env -f deploy/docker-compose.yml"`
 
 ## Before first deploy
-- [ ] Host: 4 vCPU / 8 GB RAM / 100 GB SSD (confirm with load test), Docker + compose plugin, NTP synced.
-- [ ] DNS for the hostname points to the host; ports 80/443 open to campus.
-- [ ] TLS cert + key placed as `deploy/nginx/certs/fullchain.pem` and `deploy/nginx/certs/privkey.pem` (gitignored).
-- [ ] Google OAuth client created; redirect URI = `${APP_URL}/auth/google/callback` (confirm exact path in `apps/api/src/modules/auth/routes.ts`); host can reach Google endpoints.
-- [ ] `cp deploy/.env.example deploy/.env`; fill every value (`openssl rand -hex 32` for secrets). `docker compose config` fails if any is missing.
-- [ ] Offsite backup target decided (`BACKUP_OFFSITE_TARGET`) and ssh key mounted into the backup service.
+- [ ] Host: 4 vCPU / 8 GB RAM / 100 GB SSD (confirm with load test), Docker + compose plugin, NTP synced. Deploying user in the `docker` and `adm` groups.
+- [ ] Ports 80/443 free on the host (`ss -ltn`) and open to campus.
+- [ ] DNS A record for the hostname points to the host (hosts-file entries on clients are for testing only).
+- [ ] TLS cert + key placed as `deploy/nginx/certs/fullchain.pem` and `deploy/nginx/certs/privkey.pem` (gitignored); SAN contains the hostname; key chowned to root with group read (guide step 5).
+- [ ] Google OAuth client created: JavaScript origin `${APP_URL}`, redirect URI `${APP_URL}/auth/google/callback`. Consent screen published, or every tester listed as a test user. Host can reach Google endpoints.
+- [ ] `cp deploy/.env.example deploy/.env`; `chmod 600`; fill every value (`openssl rand -hex 32` for secrets). `docker compose config` fails if any is missing.
+- [ ] `BACKUP_ENCRYPTION_KEY` stored somewhere off this host.
+- [ ] Network share mounted and writable by the deploying user for `deploy/offsite-copy.sh`.
 - [ ] (Recommended, not required) DBA grants a least-privilege backup role so `pg_dump` stops running as the superuser: see the `BACKUP_DB_ROLE` comment in `deploy/.env.example` for the exact `GRANT`. Until this is done, backups keep running as `POSTGRES_USER` — nothing breaks either way.
 
 ## Deploy

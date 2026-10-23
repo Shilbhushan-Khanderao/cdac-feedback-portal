@@ -10,14 +10,17 @@ browser --443--> nginx (TLS, static SPA, rate limits) --> api (Fastify, :3000) -
                                                           ^ migrate (one-shot)       ^ backup (cron, encrypted dumps)
 ```
 
+Container logs go to the host journal; a daily host job (`deploy/offsite-copy.sh`) copies them,
+encrypted, with the DB backups to a network share and keeps 180 days.
+
 - `apps/web/` React 19 + Vite + Tailwind; `apps/api/` Fastify API; `deploy/` Docker, nginx, backup; `docs/` runbooks.
 - The API connects as the non-superuser role `feedback_app`; Postgres RLS is the authorisation boundary.
 - Anonymity rules are in [CLAUDE.md](CLAUDE.md).
 
 ## Local development & deployment
 
-Full step-by-step guide, including local Postgres setup, running the dev servers, and the
-campus deployment walkthrough: **[GETTING-STARTED.md](GETTING-STARTED.md)**.
+Local development (Postgres setup, dev servers, tests): **[GETTING-STARTED.md](GETTING-STARTED.md)**.
+Server deployment, step by step: **[docs/ops/DEPLOYMENT-GUIDE.md](docs/ops/DEPLOYMENT-GUIDE.md)**.
 
 Quick reference, once set up:
 
@@ -34,9 +37,8 @@ $DC run --rm migrate node dist/db/bootstrap-admin.js admin@example.in "Admin Nam
 ```
 
 `migrate` runs automatically before `api`. Checklist form for a live cutover:
-[DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md); LAN test host:
-[docs/ops/LAN-TEST-DEPLOY.md](docs/ops/LAN-TEST-DEPLOY.md); day-2 operations:
-[docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md](docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md).
+[DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md); day-2 operations (logs, backup, restore, TLS
+renewal, rotation): [docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md](docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md).
 
 ## CI
 

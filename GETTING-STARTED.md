@@ -1,7 +1,8 @@
 # Getting Started
 
-Step-by-step: run the app locally, then deploy it to a campus server. For the condensed
-pre-flight checklist used during an actual cutover, see [DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md).
+Step-by-step: run the app locally. Deploying to a server is covered in
+[docs/ops/DEPLOYMENT-GUIDE.md](docs/ops/DEPLOYMENT-GUIDE.md); the condensed pre-flight checklist
+for an actual cutover is [DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md).
 For day-2 operations (logs, backup, rollback, secret rotation) see
 [docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md](docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md).
 
@@ -15,7 +16,7 @@ For day-2 operations (logs, backup, rollback, secret rotation) see
   - macOS/Linux: these ship with any standard PostgreSQL install (`brew install postgresql@16`, `apt install postgresql-16`, …).
 - Git.
 
-Docker is **not** needed for local dev — only for the production deployment in Part 2.
+Docker is **not** needed for local dev — only for the server deployment (see Part 2).
 
 ### 2. Clone and install
 
@@ -113,125 +114,9 @@ To wipe and start over: stop Postgres, delete `.dev_db/`, repeat from step 3.
 
 ## Part 2 — Deploy to a campus server
 
-This is the detailed walkthrough. For the same steps as a terse checklist to tick off live
-during a real cutover, use [DEPLOYMENT-CHECKLIST.md](DEPLOYMENT-CHECKLIST.md) instead.
-
-### 1. Server prerequisites
-
-- A Linux host (tested on Ubuntu): 4 vCPU / 8 GB RAM / 100 GB SSD to start — confirm with a
-  load test (`npm run test:load`) once staging is up, and tune from there.
-- Docker Engine + the Compose plugin (`docker compose version` should work).
-- A DNS name pointing at this host (e.g. `feedback.cdac.in`), with ports 80 and 443 open to
-  the campus network.
-- A TLS certificate and private key for that hostname.
-- A Google Cloud OAuth 2.0 client (type: Web application), with an authorized redirect URI of
-  `https://<your-hostname>/auth/google/callback`. The host needs outbound HTTPS access to
-  `accounts.google.com`, `oauth2.googleapis.com` and `www.googleapis.com` — this is the one
-  thing that keeps the deployment from being fully air-gapped.
-
-### 2. Get the code onto the host
-
-```bash
-git clone <repo-url> /opt/cdac-feedback
-cd /opt/cdac-feedback
-```
-
-### 3. Configure secrets
-
-```bash
-cp deploy/.env.example deploy/.env
-chmod 600 deploy/.env
-```
-
-Fill every blank value in `deploy/.env`. Generate each secret separately — do not reuse one
-value across `COOKIE_SECRET`, `POSTGRES_PASSWORD`, `APP_DB_PASSWORD` and `BACKUP_ENCRYPTION_KEY`:
-
-```bash
-openssl rand -hex 32
-```
-
-`docker compose config` refuses to run if any `${VAR:?...}` placeholder in `deploy/docker-compose.yml`
-is left empty — that's deliberate, not a bug to work around.
-
-### 4. Install the TLS certificate
-
-```bash
-mkdir -p deploy/nginx/certs
-cp /path/to/fullchain.pem deploy/nginx/certs/
-cp /path/to/privkey.pem deploy/nginx/certs/
-```
-
-(This directory is gitignored — certs never get committed.)
-
-### 5. Build and start the stack
-
-```bash
-DC="docker compose --env-file deploy/.env -f deploy/docker-compose.yml"
-$DC up -d --build
-```
-
-This builds the `api` and `web` (nginx) images, starts `db`, runs `migrate` once (it creates
-the `feedback_app` role and applies every migration in `apps/api/src/db/migrations/`), then
-starts `api` only once `migrate` succeeded, then `nginx`, then `backup`.
-
-```bash
-$DC ps
-```
-
-Expect `db`, `api`, `nginx` all `healthy`, and `migrate` `Exited (0)`.
-
-### 6. Create the first admin
-
-No seed data loads in production (`npm run seed` refuses to run when `NODE_ENV=production`,
-and the production init never mounts `seed.sql`). Create your first real admin directly:
-
-```bash
-$DC run --rm api node dist/db/bootstrap-admin.js admin@yourdomain.in "Admin Name"
-```
-
-They can now sign in with Google and will land as admin. Use Setup → Staff inside the app to
-add CCs and further admins from there.
-
-### 7. Verify
-
-```bash
-curl -I http://<host>/                 # expect 301 to https://
-curl -I https://<host>/                 # expect HSTS, CSP, X-Frame-Options headers
-curl -I https://<host>/favicon.svg      # expect 200, content-type image/svg+xml
-curl https://<host>/api/health          # expect {"status":"healthy","database":"connected"}
-curl -o /dev/null -w '%{http_code}\n' -X POST https://<host>/auth/dev-login   # expect 404
-```
-
-Then in a browser: sign in with Google as the admin you just created, as a CC, and as a
-student from your real roster — confirm an email **not** on either roster is rejected.
-
-### 8. Upload the real roster, not test data
-
-Setup → Students (admin) or the Roster page (CC) to upload the real student CSV. Confirm no
-test accounts exist:
-
-```bash
-$DC exec db psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -c "select count(*) from student_roster"
-```
-
-should be 0 before the real upload, matching your actual cohort size after.
-
-### 9. Backup, then go live
-
-```bash
-$DC exec backup /scripts/backup.sh
-$DC exec backup ls -l /backups
-$DC exec backup /scripts/restore-test.sh /backups/<the file just created>
-```
-
-The restore drill should print `PASS` with row counts for every table, including `responses`,
-`submissions` and `audit_logs`. Do this before go-live and monthly after.
-
-From here, day-2 operations (logs, TLS renewal, secret rotation, incident response) are in
-[docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md](docs/ops/PRODUCTION-CUTOVER-RUNBOOK.md), and the
-current security/compliance status is tracked in `docs/security/` — see
-[docs/security/simulation/00-MASTER-REGISTER.md](docs/security/simulation/00-MASTER-REGISTER.md) for
-what's fixed and what's still open before external VAPT submission.
+The full walkthrough (host prerequisites, hostname and DNS, Google OAuth client, TLS
+certificate, `deploy/.env`, first admin, client setup, logs and off-host copies, backup drill,
+troubleshooting) is in **[docs/ops/DEPLOYMENT-GUIDE.md](docs/ops/DEPLOYMENT-GUIDE.md)**.
 
 ---
 
