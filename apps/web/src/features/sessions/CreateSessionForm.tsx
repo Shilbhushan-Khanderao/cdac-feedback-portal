@@ -18,11 +18,13 @@ import { Choice } from '../../shared/ui';
 
 interface Props {
   onDone: (created?: { id: string; moduleName?: string }) => void;
+  /** Pre-filled from a dashboard link ("Create session" for a module not yet reviewed). */
+  prefill?: Partial<{ batch_id: string; centre_id: string; course_id: string; module_id: string }>;
 }
 
 const DEFAULT_WINDOW = '3 days';
 
-export function CreateSessionForm({ onDone }: Props) {
+export function CreateSessionForm({ onDone, prefill = {} }: Props) {
   const me = useMe();
   const queryClient = useQueryClient();
   const modules = useModules();
@@ -30,9 +32,16 @@ export function CreateSessionForm({ onDone }: Props) {
   const courses = useCourses();
   const sizes = useCohortSizes();
   const formRef = useRef<HTMLFormElement>(null);
-  const [cohort, setCohort] = useState<Cohort>(() => emptyCohort(me));
+  const [cohort, setCohort] = useState<Cohort>(() => {
+    const c = emptyCohort(me);
+    return {
+      batch_id: prefill.batch_id ?? c.batch_id,
+      centre_ids: c.centre_ids.length ? c.centre_ids : prefill.centre_id ? [prefill.centre_id] : [],
+      course_id: c.course_id || prefill.course_id || '',
+    };
+  });
   const [faculty, setFaculty] = useState<string[]>([]);
-  const [moduleId, setModuleId] = useState('');
+  const [moduleId, setModuleId] = useState(prefill.module_id ?? '');
   const [schedule, setSchedule] = useState<Schedule>(() => presetSchedule(DEFAULT_WINDOW));
   // Errors show only after the first attempt to create; before that, empty fields are just highlighted.
   const [tried, setTried] = useState(false);

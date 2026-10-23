@@ -1,56 +1,66 @@
 import type { ReactNode } from 'react';
+import { Link } from 'react-router';
+import { CaretRight } from '@phosphor-icons/react';
 
-interface KPICardProps {
+export interface KPI {
   label: string;
   value: ReactNode;
   hint: string;
+  /** Route to open, or an in-page section id starting with '#'. */
+  to?: string;
+  alert?: boolean;
 }
 
-function KPICard({ label, value, hint }: KPICardProps) {
+/** Headline numbers; each card with a target opens the list or section behind the number. */
+export function KPISummary({ items }: { items: KPI[] }) {
   return (
-    <div className="card">
-      <p className="muted text-xs sm:text-sm font-medium">{label}</p>
-      <p className="num mt-1 text-2xl sm:text-3xl font-semibold tracking-tight text-stone-900">{value}</p>
-      <p className="muted mt-1 text-xs">{hint}</p>
-    </div>
-  );
-}
-
-interface KPISummaryProps {
-  sessionCount: number;
-  openCount: number;
-  responseRatePct: number;
-  submittedCount: number;
-  studentsCount: number;
-  avgRating: string;
-  avgRatingHint: string;
-  awaitingCount: number;
-}
-
-export function KPISummary({
-  sessionCount,
-  openCount,
-  responseRatePct,
-  submittedCount,
-  studentsCount,
-  avgRating,
-  avgRatingHint,
-  awaitingCount,
-}: KPISummaryProps) {
-  return (
-    <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-      <KPICard label="Sessions" value={sessionCount} hint={`${openCount} open now`} />
-      <KPICard
-        label="Response rate"
-        value={`${responseRatePct}%`}
-        hint={`${submittedCount} of ${studentsCount} students`}
-      />
-      <KPICard
-        label="Average rating"
-        value={avgRating}
-        hint={avgRatingHint}
-      />
-      <KPICard label="Awaiting results" value={awaitingCount} hint="Closed, fewer than 3 responses" />
+    <div className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+      {items.map((k) => {
+        const body = (
+          <>
+            <p className="flex items-center justify-between text-xs font-semibold uppercase tracking-wide text-stone-500">
+              {k.label}
+              {k.to && (
+                <CaretRight
+                  size={14}
+                  className="text-stone-400 group-hover:text-brand-700"
+                  aria-hidden
+                />
+              )}
+            </p>
+            <p
+              className={`num mt-1 text-2xl font-semibold tracking-tight sm:text-3xl ${k.alert ? 'text-red-700' : 'text-stone-900'}`}
+            >
+              {k.value}
+            </p>
+            <p className="mt-1 text-xs text-stone-600">{k.hint}</p>
+          </>
+        );
+        const cls = 'card group block transition-colors';
+        if (!k.to)
+          return (
+            <div key={k.label} className={cls}>
+              {body}
+            </div>
+          );
+        return k.to.startsWith('#') ? (
+          <a
+            key={k.label}
+            href={k.to}
+            onClick={(e) => {
+              e.preventDefault();
+              document.getElementById(k.to!.slice(1))?.scrollIntoView({ behavior: 'smooth' });
+            }}
+            className={`${cls} hover:border-brand-400`}
+          >
+            {body}
+          </a>
+        ) : (
+          <Link key={k.label} to={k.to} className={`${cls} hover:border-brand-400`}>
+            {body}
+          </Link>
+        );
+      })}
     </div>
   );
 }

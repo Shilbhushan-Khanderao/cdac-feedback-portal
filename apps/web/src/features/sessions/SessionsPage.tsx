@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import { Link } from 'react-router';
+import { Link, useSearchParams } from 'react-router';
 import { toast } from 'sonner';
 import { sessionsApi } from '../../shared/sessionsApi';
 import {
@@ -22,7 +22,18 @@ export function SessionsPage() {
   const [pickedCourse, setCourseFilter] = useState('');
   // A CC assigned to one course only works with that course.
   const courseFilter = me.course_id ?? pickedCourse;
-  const [creating, setCreating] = useState(false);
+  // Dashboard "Create session" links: /sessions?new=1&batch_id=…&centre_id=…&course_id=…&module_id=…
+  const [params, setParams] = useSearchParams();
+  const prefill = Object.fromEntries(
+    ['batch_id', 'centre_id', 'course_id', 'module_id'].flatMap((k) =>
+      params.get(k) ? [[k, params.get(k)!]] : [],
+    ),
+  );
+  const [creating, setCreatingState] = useState(params.has('new'));
+  const setCreating = (v: boolean | ((c: boolean) => boolean)) => {
+    setCreatingState(v);
+    if (params.size) setParams({}, { replace: true });
+  };
   const [createdSession, setCreatedSession] = useState<{ id: string; moduleName?: string } | null>(
     null,
   );
@@ -171,6 +182,7 @@ export function SessionsPage() {
 
       {creating && (
         <CreateSessionForm
+          prefill={prefill}
           onDone={(created) => {
             setCreating(false);
             if (created) setCreatedSession(created);

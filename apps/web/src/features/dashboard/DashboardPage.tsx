@@ -1,12 +1,10 @@
-import { Choice } from '../../shared/ui';
-import { useMemo, useState, type ReactNode } from 'react';
+import { useMemo, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from 'react-router';
+import { toast } from 'sonner';
+import { FilePdf } from '@phosphor-icons/react';
 import {
-  Bar,
-  BarChart,
   CartesianGrid,
-  LabelList,
   Line,
   LineChart,
   ResponsiveContainer,
@@ -15,35 +13,48 @@ import {
   YAxis,
 } from 'recharts';
 import { useMe } from '../../app/auth';
-import { fmt, sessionStatus } from '../../shared/format';
-import { CATEGORICAL, INK, RATING_COLORS, RATING_ORDER, RATING_SCORE } from '../../shared/palette';
+import { sessionStatus } from '../../shared/format';
+import { CATEGORICAL, INK } from '../../shared/palette';
+import { useBatches, useModules } from '../../shared/reference';
+import { Choice } from '../../shared/ui';
 import { dashboardApi, type DashboardReportRow as Row } from './api';
+import { Attention } from './Attention';
+import { downloadSummary } from './exportSummary';
+import {
+  actions,
+  commentsByQuestion,
+  LOW_RATING,
+  mean,
+  merge,
+  pct,
+  questionScores,
+  round1,
+  scoreTable,
+  total,
+} from './insights';
 import { KPISummary } from './KPISummary';
-
-const total = (r: Record<string, number>) => Object.values(r).reduce((a, b) => a + b, 0);
-const mean = (r: Record<string, number>) => {
-  const n = Object.entries(r).reduce((a, [k, v]) => a + (RATING_SCORE[k] ? v : 0), 0);
-  return n ? Object.entries(r).reduce((a, [k, v]) => a + (RATING_SCORE[k] ?? 0) * v, 0) / n : 0;
-};
-const pct = (a: number, b: number) => (b ? Math.round((100 * a) / b) : 0);
-const merge = (rows: Row[]) =>
-  rows.reduce<Record<string, number>>((acc, r) => {
-    for (const [k, v] of Object.entries(r.ratings ?? {})) acc[k] = (acc[k] ?? 0) + v;
-    return acc;
-  }, {});
+import { Empty, Panel, QuestionAreas, ScoreTable, StudentVoice } from './Sections';
 
 export function DashboardPage() {
   const me = useMe();
+  const isAdmin = me.role === 'admin';
   const [batch, setBatch] = useState('');
   const [course, setCourse] = useState('');
   const [centre, setCentre] = useState('');
+  const [pdfBusy, setPdfBusy] = useState(false);
+  const modules = useModules();
+  const batches = useBatches();
   const { data, isLoading, error } = useQuery({
     queryKey: ['dashboard'],
     queryFn: () => dashboardApi.dashboard() as Promise<Row[]>,
   });
+  const insights = useQuery({
+    queryKey: ['dashboard', 'insights'],
+    queryFn: () => dashboardApi.insights(),
+  });
 
   const distinct = (key: 'batch' | 'course' | 'centre') =>
-    [...new Map((data ?? []).map((r) => [r[key], r[`${key}` as const]])).values()].sort();
+    [...new Set((data ?? []).map((r) => r[key]))].sort();
   const rows = useMemo(
     () =>
       (data ?? []).filter(
@@ -54,31 +65,22 @@ export function DashboardPage() {
       ),
     [data, batch, course, centre],
   );
+  const ids = new Set(rows.map((r) => r.id));
+  const shownInsights = (insights.data ?? []).filter((s) => ids.has(s.session_id));
   const ready = rows.filter((r) => r.ratings);
-  const all = merge(ready);
+  const all = merge(ready.map((r) => r.ratings));
+  const avg = round1(mean(all));
   const students = rows.reduce((a, r) => a + r.students, 0);
   const submitted = rows.reduce((a, r) => a + r.submitted, 0);
   const open = rows.filter((r) => sessionStatus(r) === 'open').length;
-  const awaiting = rows.filter((r) => sessionStatus(r) === 'closed' && !r.ratings).length;
-
-  // Response rate by centre (admin, several centres) or by module (a single centre).
-  const byCentre = new Set(rows.map((r) => r.centre)).size > 1;
-  const rateGroups = group(rows, (r) => (byCentre ? r.centre : r.module)).map(([name, g]) => ({
-    name,
-    value: pct(
-      g.reduce((a, r) => a + r.submitted, 0),
-      g.reduce((a, r) => a + r.students, 0),
-    ),
-  }));
-  const moduleScores = group(ready, (r) => r.module)
-    .map(([name, g]) => ({ name, value: round1(mean(merge(g))), n: g.length }))
-    .sort((a, b) => b.value - a.value);
-  const facultyScores = group(
-    ready.flatMap((r) => r.faculty.map((f) => ({ f, r }))),
-    (x) => x.f,
-  )
-    .map(([name, g]) => ({ name, value: round1(mean(merge(g.map((x) => x.r)))), n: g.length }))
-    .sort((a, b) => b.value - a.value);
+  const hidden = rows.filter((r) => sessionStatus(r) === 'closed' && !r.ratings).length;
+  const activeBatchIds = new Set((batches.data ?? []).filter((b) => b.active).map((b) => b.id));
+  const todo = actions(rows, modules.data ?? [], activeBatchIds);
+  const scores = questionScores(shownInsights);
+  const voice = commentsByQuestion(shownInsights);
+  const moduleRows = scoreTable(rows, (r) => [r.module]);
+  const facultyRows = scoreTable(rows, (r) => r.faculty);
+  const centreRows = scoreTable(rows, (r) => [r.centre]);
   const trend = [...ready]
     .sort((a, b) => a.closes_at.localeCompare(b.closes_at))
     .map((r) => ({
@@ -86,10 +88,6 @@ export function DashboardPage() {
       date: new Date(r.closes_at).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' }),
       value: round1(mean(r.ratings!)),
     }));
-  const attention = rows
-    .filter((r) => sessionStatus(r) === 'open' && r.students > 0 && r.submitted / r.students < 0.5)
-    .sort((a, b) => a.closes_at.localeCompare(b.closes_at))
-    .slice(0, 6);
 
   if (isLoading) return <p className="muted">Loading dashboard…</p>;
   if (error)
@@ -99,170 +97,229 @@ export function DashboardPage() {
       </p>
     );
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-end gap-3">
-        <div className="mr-auto">
-          <h1 className="page-title">Overview</h1>
-          <p className="muted">
-            {me.role === 'admin' ? 'All centres' : 'Your centre'} · ratings appear after a session
-            closes with at least 3 responses
-          </p>
-        </div>
-        <Filter
-          label="Batch"
-          all="All batches"
-          value={batch}
-          onChange={setBatch}
-          options={distinct('batch')}
-        />
-        <Filter
-          label="Course"
-          all="All courses"
-          value={course}
-          onChange={setCourse}
-          options={distinct('course')}
-        />
-        {me.role === 'admin' && (
-          <Filter
-            label="Centre"
-            all="All centres"
-            value={centre}
-            onChange={setCentre}
-            options={distinct('centre')}
-          />
-        )}
-      </div>
+  const scope =
+    [batch, course, centre].filter(Boolean).join(' · ') ||
+    (isAdmin ? 'All centres' : 'Your centre');
+  const exportPdf = async () => {
+    setPdfBusy(true);
+    try {
+      await downloadSummary({
+        title: `Feedback summary - ${scope}`,
+        meta: [
+          ['Selection', scope],
+          ['Sessions', `${rows.length} (${ready.length} with results)`],
+          ['Response rate', `${pct(submitted, students)}% (${submitted} of ${students} students)`],
+          [
+            'Average rating',
+            ready.length ? `${avg} / 5 from ${total(all)} answers` : 'No results yet',
+          ],
+          ['Generated', new Date().toLocaleString('en-IN')],
+        ],
+        sections: ['areas', ...(isAdmin ? ['centres'] : []), 'modules', 'faculty'].map((id) =>
+          document.getElementById(id),
+        ),
+        comments: voice,
+      });
+    } catch (e) {
+      toast.error(`PDF failed: ${(e as Error).message}`);
+    } finally {
+      setPdfBusy(false);
+    }
+  };
 
-      {rows.length === 0 ? (
+  const header = (
+    <div className="flex flex-wrap items-end gap-3">
+      <div className="mr-auto">
+        <h1 className="page-title">Feedback overview</h1>
+        <p className="muted">
+          {scope} · results appear once a session closes with at least 3 answers
+        </p>
+      </div>
+      <Filter
+        label="Batch"
+        all="All batches"
+        value={batch}
+        onChange={setBatch}
+        options={distinct('batch')}
+      />
+      <Filter
+        label="Course"
+        all="All courses"
+        value={course}
+        onChange={setCourse}
+        options={distinct('course')}
+      />
+      {isAdmin && (
+        <Filter
+          label="Centre"
+          all="All centres"
+          value={centre}
+          onChange={setCentre}
+          options={distinct('centre')}
+        />
+      )}
+      <button
+        className="btn btn-primary max-sm:w-full"
+        onClick={exportPdf}
+        disabled={pdfBusy || !ready.length}
+      >
+        <FilePdf size={18} aria-hidden /> {pdfBusy ? 'Preparing…' : 'Download summary'}
+      </button>
+    </div>
+  );
+
+  if (!rows.length)
+    return (
+      <div className="space-y-6">
+        {header}
         <div className="card py-12 text-center">
-          <p className="font-medium">No feedback sessions yet</p>
-          <p className="muted mt-1">Create one under Sessions and share the link with the batch.</p>
-          <Link to="/sessions" className="btn btn-primary mt-4">
-            Go to Sessions
+          <p className="font-semibold text-stone-900">No feedback sessions yet</p>
+          <p className="muted mt-1">Create one and share the link with the batch.</p>
+          <Link to="/sessions?new=1" className="btn btn-primary mt-4">
+            Create session
           </Link>
         </div>
-      ) : (
-        <>
-          <KPISummary
-            sessionCount={rows.length}
-            openCount={open}
-            responseRatePct={pct(submitted, students)}
-            submittedCount={submitted}
-            studentsCount={students}
-            avgRating={ready.length ? `${round1(mean(all))} / 5` : '–'}
-            avgRatingHint={
-              ready.length
-                ? `${total(all)} answers, ${ready.length} sessions`
-                : 'No closed sessions yet'
-            }
-            awaitingCount={awaiting}
-          />
+      </div>
+    );
 
+  const kpis = (
+    <KPISummary
+      items={[
+        { label: 'Sessions', value: rows.length, hint: `${open} open now`, to: '/sessions' },
+        {
+          label: 'Response rate',
+          value: `${pct(submitted, students)}%`,
+          hint: `${submitted} of ${students} students`,
+          to: '#modules',
+        },
+        {
+          label: 'Average rating',
+          value: ready.length ? `${avg} / 5` : '–',
+          hint: ready.length ? `${total(all)} answers` : 'No results yet',
+          to: '#areas',
+          alert: !!ready.length && avg < LOW_RATING,
+        },
+        {
+          label: 'Results ready',
+          value: ready.length,
+          hint: 'Closed with 3+ answers',
+          to: '#voice',
+        },
+        { label: 'Results hidden', value: hidden, hint: 'Closed with under 3 answers' },
+      ]}
+    />
+  );
+  const attention = <Attention items={todo} />;
+  const areas = (
+    <Panel id="areas" title="Strengths and weak areas" sub="Average per question, out of 5">
+      <QuestionAreas scores={scores} />
+    </Panel>
+  );
+  const trendPanel = (
+    <Panel title="Rating over time" sub="Average of each session, by closing date">
+      {trend.length >= 2 ? (
+        <ResponsiveContainer width="100%" height={220}>
+          <LineChart data={trend} margin={{ top: 8, right: 16, bottom: 0, left: -16 }}>
+            <CartesianGrid stroke={INK.grid} vertical={false} />
+            <XAxis
+              dataKey="date"
+              tick={{ fill: INK.muted, fontSize: 12 }}
+              axisLine={{ stroke: INK.grid }}
+              tickLine={false}
+            />
+            <YAxis
+              domain={[1, 5]}
+              tick={{ fill: INK.muted, fontSize: 12 }}
+              axisLine={false}
+              tickLine={false}
+            />
+            <Tooltip
+              formatter={(v) => [`${v} / 5`, 'Average']}
+              labelFormatter={(_, p) => p?.[0]?.payload.name ?? ''}
+            />
+            <Line
+              type="monotone"
+              dataKey="value"
+              stroke={CATEGORICAL[0]}
+              strokeWidth={2}
+              isAnimationActive={false}
+              dot={{ r: 4, fill: CATEGORICAL[0], stroke: '#fff', strokeWidth: 2 }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      ) : (
+        <Empty>Shows once two sessions have results.</Empty>
+      )}
+    </Panel>
+  );
+  const tables = (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <Panel
+        id="modules"
+        title="Modules"
+        sub="Score out of 5, and the share of students who answered"
+      >
+        <ScoreTable rows={moduleRows} label="Module" />
+      </Panel>
+      <Panel id="faculty" title="Faculty" sub="Across all their sessions with results">
+        <ScoreTable rows={facultyRows} label="Faculty" />
+      </Panel>
+    </div>
+  );
+  const voicePanel = (
+    <Panel
+      id="voice"
+      title="What students said"
+      sub="Written comments in random order; no names are attached"
+    >
+      {insights.isLoading ? (
+        <p className="muted">Loading comments…</p>
+      ) : (
+        <StudentVoice groups={voice} />
+      )}
+    </Panel>
+  );
+
+  return (
+    <div className="space-y-6">
+      {header}
+      {isAdmin ? (
+        <>
+          {kpis}
           <div className="grid gap-4 lg:grid-cols-2">
             <Panel
-              title="Response rate"
-              sub={byCentre ? 'By centre' : 'By module'}
-              empty={!rateGroups.length}
+              id="centres"
+              title="Centres compared"
+              sub="Score out of 5 and turnout, sessions with results"
             >
-              <HBar data={rateGroups} max={100} suffix="%" color={CATEGORICAL[0]} />
+              <ScoreTable rows={centreRows} label="Centre" />
             </Panel>
-            <Panel
-              title="Overall ratings"
-              sub="Share of all answers on the Excellent to Poor scale"
-              empty={!ready.length}
-              emptyText="Appears after the first session closes with 3+ responses."
-            >
-              <Distribution counts={all} />
-            </Panel>
-            <Panel
-              title="Average rating by module"
-              sub="Out of 5, closed sessions only"
-              empty={!moduleScores.length}
-            >
-              <HBar data={moduleScores} max={5} color={CATEGORICAL[0]} />
-            </Panel>
-            <Panel
-              title="Average rating by faculty"
-              sub="Out of 5, across their closed sessions"
-              empty={!facultyScores.length}
-            >
-              <HBar data={facultyScores} max={5} color={CATEGORICAL[0]} />
-            </Panel>
+            {areas}
           </div>
-
-          {trend.length >= 3 && (
-            <Panel title="Rating trend" sub="Average rating of each session, by closing date">
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={trend} margin={{ top: 8, right: 16, bottom: 0, left: -16 }}>
-                  <CartesianGrid stroke={INK.grid} vertical={false} />
-                  <XAxis
-                    dataKey="date"
-                    tick={{ fill: INK.muted, fontSize: 12 }}
-                    axisLine={{ stroke: INK.grid }}
-                    tickLine={false}
-                  />
-                  <YAxis
-                    domain={[1, 5]}
-                    tick={{ fill: INK.muted, fontSize: 12 }}
-                    axisLine={false}
-                    tickLine={false}
-                  />
-                  <Tooltip
-                    formatter={(v) => [`${v} / 5`, 'Average']}
-                    labelFormatter={(_, p) => p?.[0]?.payload.name ?? ''}
-                  />
-                  <Line
-                    type="monotone"
-                    dataKey="value"
-                    stroke={CATEGORICAL[0]}
-                    strokeWidth={2}
-                    dot={{ r: 4, fill: CATEGORICAL[0], stroke: '#fff', strokeWidth: 2 }}
-                  />
-                </LineChart>
-              </ResponsiveContainer>
-            </Panel>
+          {attention}
+          {tables}
+          {trend.length >= 2 && trendPanel}
+          {voicePanel}
+        </>
+      ) : (
+        <>
+          {attention}
+          {kpis}
+          {trend.length >= 2 ? (
+            <div className="grid gap-4 lg:grid-cols-2">
+              {areas}
+              {trendPanel}
+            </div>
+          ) : (
+            areas
           )}
-
-          {attention.length > 0 && (
-            <section className="card">
-              <h2 className="section-title">Needs attention</h2>
-              <p className="muted mb-2">
-                Open sessions where fewer than half of the students have responded.
-              </p>
-              <ul className="divide-y divide-stone-100">
-                {attention.map((r) => (
-                  <li key={r.id}>
-                    <Link
-                      to={`/sessions/${r.id}`}
-                      className="flex flex-wrap items-center gap-x-4 gap-y-1 py-2.5 hover:bg-stone-50"
-                    >
-                      <span className="font-medium">{r.module}</span>
-                      <span className="muted">
-                        {r.centre} · {r.course}
-                      </span>
-                      <span className="num ml-auto text-sm text-amber-800">
-                        {r.submitted}/{r.students} ({pct(r.submitted, r.students)}%) · closes{' '}
-                        {fmt(r.closes_at)}
-                      </span>
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            </section>
-          )}
+          {tables}
+          {voicePanel}
         </>
       )}
     </div>
   );
 }
-
-function group<T>(items: T[], key: (t: T) => string): [string, T[]][] {
-  const m = new Map<string, T[]>();
-  for (const i of items) m.set(key(i), [...(m.get(key(i)) ?? []), i]);
-  return [...m.entries()];
-}
-const round1 = (n: number) => Math.round(n * 10) / 10;
 
 function Filter({
   label,
@@ -281,126 +338,11 @@ function Filter({
     <Choice
       label={label}
       hideLabel
-      className="w-full sm:w-48"
+      className="w-full sm:w-44"
       value={value}
       onChange={onChange}
       emptyLabel={all}
       options={options.map((o) => ({ value: o, label: o }))}
     />
-  );
-}
-
-function Panel({
-  title,
-  sub,
-  empty,
-  emptyText,
-  children,
-}: {
-  title: string;
-  sub?: string;
-  empty?: boolean;
-  emptyText?: string;
-  children: ReactNode;
-}) {
-  return (
-    <section className="card">
-      <h2 className="card-title">{title}</h2>
-      {sub && <p className="muted mb-3">{sub}</p>}
-      {empty ? (
-        <p className="muted py-8 text-center">{emptyText ?? 'No data for this selection yet.'}</p>
-      ) : (
-        children
-      )}
-    </section>
-  );
-}
-
-/** Horizontal bars with the value written at the end of each bar. */
-function HBar({
-  data,
-  max,
-  suffix = '',
-  color,
-}: {
-  data: { name: string; value: number }[];
-  max: number;
-  suffix?: string;
-  color: string;
-}) {
-  return (
-    <ResponsiveContainer width="100%" height={Math.max(120, data.length * 36 + 16)}>
-      <BarChart
-        data={data}
-        layout="vertical"
-        margin={{ top: 0, right: 44, bottom: 0, left: 0 }}
-        barCategoryGap={8}
-      >
-        <XAxis type="number" domain={[0, max]} hide />
-        <YAxis
-          type="category"
-          dataKey="name"
-          width={140}
-          tick={{ fill: INK.secondary, fontSize: 12 }}
-          axisLine={false}
-          tickLine={false}
-          interval={0}
-          tickFormatter={(n: string) => (n.length > 22 ? `${n.slice(0, 21)}…` : n)}
-        />
-        <Tooltip
-          cursor={{ fill: '#f5f5f4' }}
-          formatter={(v, _n, p) => [`${v}${suffix}`, p.payload.name]}
-          separator=": "
-        />
-        <Bar
-          dataKey="value"
-          fill={color}
-          radius={[0, 4, 4, 0]}
-          barSize={18}
-          background={{ fill: '#f5f5f4', radius: 4 }}
-        >
-          <LabelList
-            dataKey="value"
-            position="right"
-            formatter={(v) => `${v}${suffix}`}
-            style={{ fill: INK.primary, fontSize: 12, fontWeight: 600 }}
-          />
-        </Bar>
-      </BarChart>
-    </ResponsiveContainer>
-  );
-}
-
-/** One 100% stacked bar of Excellent..Poor, with a legend that carries counts (colour is never the only cue). */
-function Distribution({ counts }: { counts: Record<string, number> }) {
-  const n = total(counts);
-  return (
-    <div>
-      <div
-        className="flex h-8 w-full gap-0.5 overflow-hidden rounded-md"
-        role="img"
-        aria-label={RATING_ORDER.map((k) => `${k} ${pct(counts[k] ?? 0, n)}%`).join(', ')}
-      >
-        {RATING_ORDER.map((k) =>
-          counts[k] ? (
-            <div
-              key={k}
-              style={{ width: `${(100 * counts[k]) / n}%`, background: RATING_COLORS[k] }}
-              title={`${k}: ${counts[k]}`}
-            />
-          ) : null,
-        )}
-      </div>
-      <ul className="mt-4 grid grid-cols-2 gap-x-6 gap-y-2 sm:grid-cols-1 xl:grid-cols-2">
-        {RATING_ORDER.map((k) => (
-          <li key={k} className="flex items-center gap-2 text-sm">
-            <span className="size-3 shrink-0 rounded-sm" style={{ background: RATING_COLORS[k] }} />
-            <span className="text-stone-700">{k}</span>
-            <span className="num ml-auto font-semibold">{pct(counts[k] ?? 0, n)}%</span>
-            <span className="num w-10 text-right text-stone-500">{counts[k] ?? 0}</span>
-          </li>
-        ))}
-      </ul>
-    </div>
   );
 }

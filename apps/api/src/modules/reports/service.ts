@@ -9,11 +9,34 @@ export function dashboardData(email: string) {
   });
 }
 
+// Per-question counts and comments across every session the caller manages. dashboard_insights()
+// applies the same gate as session_report() (closed, in scope, n>=3, comments in random order).
+export function dashboardInsights(email: string, ip: string) {
+  return withUser(email, async (client) => {
+    const res = await client.query('SELECT public.dashboard_insights() AS data');
+    const data = res.rows[0]?.data ?? [];
+    await audit(
+      {
+        actor: email,
+        action: 'DASHBOARD_INSIGHTS_VIEW',
+        entityType: 'feedback_sessions',
+        details: { sessions: data.length },
+        ip,
+      },
+      client,
+    );
+    return data;
+  });
+}
+
 // The only path to response content: session_report() enforces can_manage, closed, n>=3, random order.
 export function sessionReport(email: string, ip: string, id: string) {
   return withUser(email, async (client) => {
     const res = await client.query('SELECT public.session_report($1) AS report', [id]);
-    await audit({ actor: email, action: 'REPORT_VIEW', entityType: 'feedback_sessions', entityId: id, ip }, client);
+    await audit(
+      { actor: email, action: 'REPORT_VIEW', entityType: 'feedback_sessions', entityId: id, ip },
+      client,
+    );
     return res.rows[0]?.report;
   });
 }
@@ -23,8 +46,20 @@ export function sessionReport(email: string, ip: string, id: string) {
 export function logReportDownload(email: string, ip: string, id: string, format: 'pdf' | 'csv') {
   return withUser(email, async (client) => {
     // RLS: a session outside the caller's scope is simply not visible.
-    const visible = await client.query('SELECT 1 FROM public.feedback_sessions WHERE id = $1', [id]);
+    const visible = await client.query('SELECT 1 FROM public.feedback_sessions WHERE id = $1', [
+      id,
+    ]);
     if (!visible.rowCount) throw notFound('Session not found');
-    await audit({ actor: email, action: 'REPORT_DOWNLOAD', entityType: 'feedback_sessions', entityId: id, details: { format }, ip }, client);
+    await audit(
+      {
+        actor: email,
+        action: 'REPORT_DOWNLOAD',
+        entityType: 'feedback_sessions',
+        entityId: id,
+        details: { format },
+        ip,
+      },
+      client,
+    );
   });
 }

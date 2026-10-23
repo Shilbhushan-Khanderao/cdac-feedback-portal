@@ -14,20 +14,29 @@ function top(freq: Record<string, number>, n: number) {
     .map(([term, count]) => ({ term, count }));
 }
 
-function analyze(comments: string[]) {
+export function analyze(comments: string[]) {
   const scores = comments.map((c) => analyser.analyze(c).score);
   const positive = scores.filter((s) => s >= 3).length;
   const negative = scores.filter((s) => s <= -2).length;
   const phrases: Record<string, number> = {};
   const terms: Record<string, number> = {};
   const bump = (freq: Record<string, number>, w: string) => {
-    const key = w.toLowerCase().trim();
-    if (key.length > 2) freq[key] = (freq[key] ?? 0) + 1;
+    // Short, clean phrases only: compromise keeps trailing punctuation and long clauses.
+    const key = w
+      .toLowerCase()
+      .replace(/[^\p{L}\p{N}+#\s-]/gu, ' ')
+      .replace(/\s+/g, ' ')
+      .replace(/^-+|-+$/g, '')
+      .trim();
+    if (key.length > 2 && key.split(' ').length <= 3) freq[key] = (freq[key] ?? 0) + 1;
   };
   for (const c of comments) {
     const doc = nlp(c);
     (doc.nouns().out('array') as string[]).forEach((p) => bump(phrases, p));
-    [...(doc.adjectives().out('array') as string[]), ...(doc.verbs().out('array') as string[])].forEach((w) => bump(terms, w));
+    [
+      ...(doc.adjectives().out('array') as string[]),
+      ...(doc.verbs().out('array') as string[]),
+    ].forEach((w) => bump(terms, w));
   }
   return {
     avgScore: Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10,
@@ -51,9 +60,16 @@ export function CommentAnalysis({ comments }: { comments: string[] }) {
         <div className="grid grid-cols-3 gap-2 text-center">
           <Stat label="Comments" value={comments.length} />
           <Stat label="Positive" value={a.tone[0].count} color="#1b7a4a" />
-          <Stat label="Avg. score" value={(a.avgScore > 0 ? '+' : '') + a.avgScore} color={toneColor(a.avgScore)} />
+          <Stat
+            label="Avg. score"
+            value={(a.avgScore > 0 ? '+' : '') + a.avgScore}
+            color={toneColor(a.avgScore)}
+          />
         </div>
-        <Bars title="Tone (AFINN)" data={a.tone.map((t) => ({ term: t.label, count: t.count, color: t.color }))} />
+        <Bars
+          title="Tone (AFINN)"
+          data={a.tone.map((t) => ({ term: t.label, count: t.count, color: t.color }))}
+        />
         {a.phrases.length > 0 && <Bars title="Key phrases" data={a.phrases} color="#1b8a4f" />}
         {a.terms.length > 0 && <Bars title="Descriptive words" data={a.terms} color="#8e3b8a" />}
       </div>
@@ -72,7 +88,15 @@ function Stat({ label, value, color }: { label: string; value: string | number; 
   );
 }
 
-function Bars({ title, data, color }: { title: string; data: { term: string; count: number; color?: string }[]; color?: string }) {
+function Bars({
+  title,
+  data,
+  color,
+}: {
+  title: string;
+  data: { term: string; count: number; color?: string }[];
+  color?: string;
+}) {
   return (
     <div>
       <h4 className="muted mb-1">{title}</h4>

@@ -2,13 +2,14 @@ import type { FastifyPluginAsync } from 'fastify';
 import { requireStaff } from '../../shared/guards.js';
 import { badRequest, mapDbError } from '../../shared/errors.js';
 import { isUuid } from '../../shared/validate.js';
-import { dashboardData, logReportDownload, sessionReport } from './service.js';
+import { dashboardData, dashboardInsights, logReportDownload, sessionReport } from './service.js';
 
 export const reportRoutes: FastifyPluginAsync = async (app) => {
   app.addHook('preHandler', requireStaff);
 
   // ---------------------------------------------------------------- Dashboard Data
   app.get('/dashboard', async (req) => dashboardData(req.user!.email));
+  app.get('/dashboard/insights', async (req) => dashboardInsights(req.user!.email, req.ip));
 
   // ---------------------------------------------------------------- Session Report
   app.get('/:id', async (req) => {
