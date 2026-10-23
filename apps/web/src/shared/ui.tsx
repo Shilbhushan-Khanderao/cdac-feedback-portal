@@ -54,6 +54,7 @@ export function Choice({
   emptyLabel,
   isDisabled,
   isRequired,
+  error,
   className = '',
 }: {
   label: string;
@@ -65,8 +66,12 @@ export function Choice({
   emptyLabel?: string;
   isDisabled?: boolean;
   isRequired?: boolean;
+  /** Shown under the field, with a red outline; set when the user tried to continue without it. */
+  error?: string;
   className?: string;
 }) {
+  const state = error ? 'input-error' : isRequired && !value && !isDisabled ? 'input-needs' : '';
+  const errorEl = error && <p className="field-error">{error}</p>;
   const items = emptyLabel ? [{ value: '', label: emptyLabel }, ...options] : options;
   const labelEl = <Label className={hideLabel ? 'sr-only' : 'label'}>{label}</Label>;
   const change = (key: Key | null) => onChange(key == null ? '' : String(key));
@@ -90,6 +95,7 @@ export function Choice({
     return (
       <ComboBox
         className={className}
+        data-field-error={error ? '' : undefined}
         selectedKey={value || null}
         onSelectionChange={change}
         defaultItems={items}
@@ -99,7 +105,10 @@ export function Choice({
       >
         {labelEl}
         <div className="relative">
-          <Input className="input pr-10 data-disabled:bg-stone-50" placeholder={placeholder} />
+          <Input
+            className={`input pr-10 data-disabled:bg-stone-50 ${state}`}
+            placeholder={placeholder}
+          />
           <Button
             className="absolute inset-y-0 right-0 flex w-10 items-center justify-center text-stone-500"
             aria-label="Show options"
@@ -107,6 +116,7 @@ export function Choice({
             <CaretDown size={16} aria-hidden />
           </Button>
         </div>
+        {errorEl}
         {list}
       </ComboBox>
     );
@@ -115,6 +125,7 @@ export function Choice({
   return (
     <Select
       className={className}
+      data-field-error={error ? '' : undefined}
       selectedKey={value || (emptyLabel ? '' : null)}
       onSelectionChange={change}
       isDisabled={isDisabled}
@@ -122,10 +133,13 @@ export function Choice({
       placeholder={placeholder}
     >
       {labelEl}
-      <Button className="input flex items-center justify-between gap-2 text-left data-disabled:bg-stone-50 data-disabled:text-stone-500">
+      <Button
+        className={`input flex items-center justify-between gap-2 text-left data-disabled:bg-stone-50 data-disabled:text-stone-500 ${state}`}
+      >
         <SelectValue className="truncate data-placeholder:text-stone-500" />
         <CaretDown size={16} className="shrink-0 text-stone-500" aria-hidden />
       </Button>
+      {errorEl}
       {list}
     </Select>
   );

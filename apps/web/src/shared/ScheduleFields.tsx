@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { DateTimeField } from './ui';
 import { durationText, fmt } from './format';
 
@@ -18,65 +19,95 @@ const PRESETS: { label: string; closes: (now: number) => number }[] = [
   { label: 'Until end of day', closes: endOfToday },
   { label: '3 days', closes: (now) => now + 72 * HOUR },
 ];
+const CUSTOM = 'Custom';
 
-/** Opens/closes pickers, one-tap windows starting now, and a plain-language check of the result. */
+/** A window of the given preset's length, starting now. */
+export function presetSchedule(preset: string): Schedule {
+  const now = Date.now();
+  const p = PRESETS.find((x) => x.label === preset) ?? PRESETS[3];
+  return { opens: at(now), closes: at(p.closes(now)) };
+}
+
+/**
+ * How long students can answer: a one-tap window starting now, or Custom for exact times.
+ * `initial` is the preset already applied to `value`; leave it out when `value` is a saved schedule.
+ */
 export function ScheduleFields({
   value,
   onChange,
+  initial = CUSTOM,
   closeNow,
 }: {
   value: Schedule;
   onChange: (s: Schedule) => void;
+  initial?: string;
   closeNow?: boolean;
 }) {
+  const [choice, setChoice] = useState(initial);
   const length = durationText(Date.parse(value.closes) - Date.parse(value.opens));
+  const pick = (label: string) => {
+    setChoice(label);
+    if (label !== CUSTOM) onChange(presetSchedule(label));
+  };
+
   return (
-    <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2">
-        <span className="text-sm text-stone-600">Open now for:</span>
-        {PRESETS.map((p) => (
-          <button
-            key={p.label}
-            type="button"
-            className="btn min-h-9 rounded-full px-3 py-1 text-xs"
-            onClick={() => {
-              const now = Date.now();
-              onChange({ opens: at(now), closes: at(p.closes(now)) });
-            }}
-          >
-            {p.label}
-          </button>
-        ))}
+    <div className="space-y-3" data-field-error={length ? undefined : ''}>
+      <div className="flex flex-wrap gap-2">
+        <div
+          role="group"
+          aria-label="Open now for"
+          className="inline-flex flex-wrap gap-1 rounded-lg border border-stone-300 bg-white p-1"
+        >
+          {[...PRESETS.map((p) => p.label), CUSTOM].map((label) => (
+            <button
+              key={label}
+              type="button"
+              aria-pressed={choice === label}
+              onClick={() => pick(label)}
+              className={`min-h-9 rounded-md px-3 text-sm font-medium transition-colors ${
+                choice === label
+                  ? 'bg-brand-700 text-white shadow-sm'
+                  : 'text-stone-700 hover:bg-stone-100'
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
         {closeNow && (
           <button
             type="button"
-            className="btn btn-danger min-h-9 rounded-full px-3 py-1 text-xs"
+            className="btn btn-danger"
             onClick={() => onChange({ ...value, closes: at(Date.now()) })}
           >
             Close now
           </button>
         )}
       </div>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <DateTimeField
-          label="Opens"
-          value={value.opens}
-          onChange={(opens) => onChange({ ...value, opens })}
-        />
-        <DateTimeField
-          label="Closes"
-          value={value.closes}
-          onChange={(closes) => onChange({ ...value, closes })}
-        />
-      </div>
-      <p
-        role="status"
-        className={`text-sm ${length ? 'text-stone-600' : 'font-medium text-red-700'}`}
-      >
-        {length
-          ? `Open ${fmt(value.opens)} to ${fmt(value.closes)} (${length}).`
-          : 'Closes must be after Opens.'}
-      </p>
+
+      {choice === CUSTOM && (
+        <div className="grid gap-4 sm:grid-cols-2">
+          <DateTimeField
+            label="Opens"
+            value={value.opens}
+            onChange={(opens) => onChange({ ...value, opens })}
+          />
+          <DateTimeField
+            label="Closes"
+            value={value.closes}
+            onChange={(closes) => onChange({ ...value, closes })}
+          />
+        </div>
+      )}
+
+      {length ? (
+        <p className="text-sm text-stone-700">
+          Students can answer from <strong className="font-semibold">{fmt(value.opens)}</strong> to{' '}
+          <strong className="font-semibold">{fmt(value.closes)}</strong> ({length}).
+        </p>
+      ) : (
+        <p className="field-error">The closing time must be after the opening time.</p>
+      )}
     </div>
   );
 }

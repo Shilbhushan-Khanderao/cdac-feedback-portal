@@ -303,6 +303,7 @@ export default function SessionReport() {
           </p>
         ) : (
           <div className="space-y-3 border-t border-stone-100 pt-3">
+            <h3 className="text-base font-semibold text-stone-900">Change schedule</h3>
             <ScheduleFields value={schedule} onChange={setScheduleDraft} closeNow />
             <div className="flex flex-wrap items-center gap-2">
               <button
