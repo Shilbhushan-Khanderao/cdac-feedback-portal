@@ -37,11 +37,11 @@ function FeedbackMark({ className }: { className?: string }) {
 /** [C-DAC mark | our Feedback Portal mark], divided by a vertical rule. */
 export function BrandLockup({ className = '' }: { className?: string }) {
   return (
-    <span className={`flex items-center gap-3 ${className}`}>
-      <CdacMark className="h-11 w-auto text-brand-800" />
-      <span className="h-9 w-px bg-stone-300" aria-hidden />
-      <span className="flex items-center gap-1.5 font-semibold tracking-tight text-stone-900">
-        <FeedbackMark className="size-5 text-brand-700" />
+    <span className={`flex items-center gap-2 sm:gap-3 ${className}`}>
+      <CdacMark className="h-9 w-auto text-brand-800 sm:h-11" />
+      <span className="h-8 w-px bg-stone-300 sm:h-9" aria-hidden />
+      <span className="flex items-center gap-1.5 whitespace-nowrap font-semibold tracking-tight text-stone-900">
+        <FeedbackMark className="hidden size-5 text-brand-700 sm:block" />
         Feedback Portal
       </span>
     </span>

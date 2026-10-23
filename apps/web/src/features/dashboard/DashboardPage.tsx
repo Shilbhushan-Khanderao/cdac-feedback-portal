@@ -78,9 +78,9 @@ export function DashboardPage() {
             {me.role === 'admin' ? 'All centres' : 'Your centre'} · ratings appear after a session closes with at least 3 responses
           </p>
         </div>
-        <Filter label="Batch" value={batch} onChange={setBatch} options={distinct('batch')} />
-        <Filter label="Course" value={course} onChange={setCourse} options={distinct('course')} />
-        {me.role === 'admin' && <Filter label="Centre" value={centre} onChange={setCentre} options={distinct('centre')} />}
+        <Filter label="Batch" all="All batches" value={batch} onChange={setBatch} options={distinct('batch')} />
+        <Filter label="Course" all="All courses" value={course} onChange={setCourse} options={distinct('course')} />
+        {me.role === 'admin' && <Filter label="Centre" all="All centres" value={centre} onChange={setCentre} options={distinct('centre')} />}
       </div>
 
       {rows.length === 0 ? (
@@ -165,12 +165,12 @@ function group<T>(items: T[], key: (t: T) => string): [string, T[]][] {
 }
 const round1 = (n: number) => Math.round(n * 10) / 10;
 
-function Filter({ label, value, onChange, options }: { label: string; value: string; onChange: (v: string) => void; options: string[] }) {
+function Filter({ label, all, value, onChange, options }: { label: string; all: string; value: string; onChange: (v: string) => void; options: string[] }) {
   return (
     <label className="text-sm">
       <span className="sr-only">{label}</span>
       <select className="input w-auto" value={value} onChange={(e) => onChange(e.target.value)} aria-label={label}>
-        <option value="">All {label.toLowerCase()}s</option>
+        <option value="">{all}</option>
         {options.map((o) => (
           <option key={o}>{o}</option>
         ))}

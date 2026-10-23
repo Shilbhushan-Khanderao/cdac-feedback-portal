@@ -24,6 +24,8 @@ export function buildApp() {
       level: config.NODE_ENV === 'production' ? 'info' : 'debug',
       // Redact sensitive headers and bodies
       redact: ['req.headers.authorization', 'req.headers.cookie'],
+      // ISO-8601 UTC instead of epoch ms, so log reviewers can read times directly.
+      timestamp: () => `,"time":"${new Date().toISOString()}"`,
       serializers: {
         // INF-4: the OAuth callback's query string (?code=...&state=...) must never land in
         // logs verbatim. The code is single-use/short-lived/PKCE-bound, but a log line is
@@ -154,9 +156,10 @@ export function buildApp() {
   });
 
   // ---------------------------------------------------------------- Health Check
-  app.get('/healthz', async () => ({ status: 'ok', uptime: process.uptime() }));
+  app.get('/healthz', { logLevel: 'warn' }, async () => ({ status: 'ok', uptime: process.uptime() }));
 
-  app.get('/api/health', async (_req, reply) => {
+  // Polled every 15s by the container healthcheck: log only failures.
+  app.get('/api/health', { logLevel: 'warn' }, async (_req, reply) => {
     try {
       await pool.query('SELECT 1');
       return { status: 'healthy', database: 'connected' };

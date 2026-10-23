@@ -12,7 +12,7 @@ import type { Question } from '../../shared/api';
 import { PieChart } from './PieChart';
 import { CommentAnalysis } from './CommentAnalysis';
 import { FacultyPicker } from '../../shared/FacultyPicker';
-import { Clipboard, WhatsappLogo } from '@phosphor-icons/react';
+import { Clipboard, Warning, WhatsappLogo } from '@phosphor-icons/react';
 
 function download(blob: Blob, name: string) {
   const a = document.createElement('a');
@@ -189,28 +189,45 @@ export default function SessionReport() {
           </p>
         )}
         <div className="flex flex-wrap gap-2">
-          <button className="btn btn-primary" onClick={copyLink}>
-            <Clipboard size={16} aria-hidden /> Copy student link
-          </button>
-          <button className="btn bg-emerald-700 text-white hover:bg-emerald-800 font-medium" onClick={shareLink}>
-            <WhatsappLogo size={16} aria-hidden /> Share to WhatsApp
-          </button>
-          <button className="btn" onClick={downloadPdf} disabled={pdfBusy || report.total === 0}>
-            {pdfBusy ? 'Preparing PDF…' : 'Download PDF'}
-          </button>
-          <button
-            className="btn"
-            disabled={report.total === 0}
-            onClick={() => download(new Blob([String.fromCharCode(0xfeff) + toCsv(data.questions, data.answers)], { type: 'text/csv' }), `${fileBase}.csv`)}
-          >
-            Download CSV
-          </button>
+          {!closed && (
+            <>
+              <button className="btn btn-primary" onClick={copyLink}>
+                <Clipboard size={16} aria-hidden /> Copy student link
+              </button>
+              <button className="btn bg-emerald-700 text-white hover:bg-emerald-800 font-medium" onClick={shareLink}>
+                <WhatsappLogo size={16} aria-hidden /> Share to WhatsApp
+              </button>
+            </>
+          )}
+          {report.total > 0 && (
+            <>
+              <button className="btn" onClick={downloadPdf} disabled={pdfBusy}>
+                {pdfBusy ? 'Preparing PDF…' : 'Download PDF'}
+              </button>
+              <button
+                className="btn"
+                onClick={() => download(new Blob([String.fromCharCode(0xfeff) + toCsv(data.questions, data.answers)], { type: 'text/csv' }), `${fileBase}.csv`)}
+              >
+                Download CSV
+              </button>
+            </>
+          )}
           {submittedCount === 0 && (
             <button className="btn btn-danger" onClick={() => confirm('Delete this session?') && remove.mutate()}>
               Delete
             </button>
           )}
         </div>
+        {resultStatus !== 'ready' && (
+          <p role="status" className="flex items-start gap-2 rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+            <Warning size={18} weight="fill" className="mt-0.5 shrink-0 text-amber-600" aria-hidden />
+            <span>
+              {resultStatus === 'open'
+                ? `Results and downloads become available after the session closes (${fmt(session.closes_at)}). This keeps answers anonymous.`
+                : <><strong>Results and downloads are not available:</strong> fewer than 3 students responded. This keeps answers anonymous.</>}
+            </span>
+          </p>
+        )}
         {closed ? (
           <p className="muted border-t border-stone-100 pt-3">
             Ran {fmt(session.opens_at)} to {fmt(session.closes_at)}. The schedule is final after a session closes.
@@ -237,13 +254,6 @@ export default function SessionReport() {
         <p className="font-medium">
           {submittedCount} of {roster.length} students submitted
         </p>
-        {resultStatus !== 'ready' && (
-          <p className="muted mt-1">
-            {resultStatus === 'open'
-              ? `To keep answers anonymous, results appear after the session closes (${fmt(session.closes_at)}).`
-              : 'Results are hidden because fewer than 3 students responded. This keeps answers anonymous.'}
-          </p>
-        )}
         {pending.length > 0 && (
           <details className="mt-2">
             <summary className="cursor-pointer text-sm text-brand-700">{pending.length} not submitted yet</summary>

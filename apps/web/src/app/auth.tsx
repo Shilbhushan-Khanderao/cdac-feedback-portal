@@ -85,9 +85,8 @@ export function StaffPrivacyNotice() {
     <div className="mx-auto max-w-6xl px-4 pt-2">
       <div role="status" className="card flex flex-wrap items-start gap-3 border-brand-200 bg-brand-50 p-3 text-sm text-stone-700">
         <p className="flex-1">
-          <strong>Privacy notice:</strong> your name, email, IP address and actions on this portal are logged for
-          security and audit purposes. Sign-in uses Google Sign-In (we request only your email). This is the same
-          DPDP Act 2023 notice shown to students at sign-in.
+          <strong>Privacy:</strong> for security, we keep a record of your sign-ins and the changes you make here,
+          with your name, email and IP address.
         </p>
         <button className="btn px-3 py-1 text-xs" onClick={dismiss}>
           Got it
@@ -155,38 +154,22 @@ export function AuthGate({ children }: { children: ReactNode }) {
     return (
       <main id="main" className="mx-auto mt-12 max-w-lg px-4">
         <div className="card space-y-4 text-left">
-          <div className="flex items-center gap-2 border-b pb-3">
-            <svg viewBox="0 0 24 24" className="size-6 text-brand-700" fill="none" stroke="currentColor" strokeWidth="2">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 5-4.03 9-9 9s-9-4-9-9 4.03-9 9-9 9 4 9 9z" />
-            </svg>
-            <h1 className="page-title">Your Privacy & Feedback</h1>
+          <h1 className="page-title">Before you start</h1>
+          <div className="space-y-3 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-900">
+            <p className="flex items-center gap-1.5 font-semibold">
+              <Lock size={16} aria-hidden /> Your feedback is anonymous
+            </p>
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>Your coordinator can see whether you submitted, but never what you wrote.</li>
+              <li>Your answers stay on C-DAC servers and are used only to improve teaching.</li>
+            </ul>
           </div>
-          <div className="space-y-2 text-sm text-stone-700">
-            <div className="rounded-lg bg-emerald-50 border border-emerald-200 p-3 text-emerald-900 space-y-1.5">
-              <p className="font-semibold flex items-center gap-1.5">
-                <Lock size={16} aria-hidden /> 100% Anonymous Feedback
-              </p>
-              <ul className="list-disc pl-5 space-y-1 text-xs sm:text-sm text-emerald-800">
-                <li>Your answers are strictly anonymous — coordinators and faculty cannot see who submitted what.</li>
-                <li>Reports only unlock when at least 3 students have submitted.</li>
-                <li>Feedback answers are stored on C-DAC campus servers in India.</li>
-              </ul>
-            </div>
-            <details className="text-xs text-stone-500 pt-1 cursor-pointer">
-              <summary className="hover:text-stone-700 font-medium">View full DPDP Act 2023 legal notice</summary>
-              <div className="mt-2 space-y-1 border-t pt-2 text-stone-600">
-                <p>In accordance with the <strong>Digital Personal Data Protection (DPDP) Act 2023</strong>:</p>
-                <p>• Data is processed solely for academic quality monitoring and faculty appraisal within C-DAC.</p>
-                <p>• Response records are de-identified at the database layer with no link to your student identity or timestamps.</p>
-                <p>• Signing in uses Google Sign-In, which requests only your email address; your email is processed by Google as part of login.</p>
-                <p>• Course coordinators may choose to share the anonymous feedback link for a session via WhatsApp, a third-party service, when inviting your batch.</p>
-                <p>• No third-party analytics or ad trackers are used. Google Sign-In and WhatsApp sharing (above) are the only other services involved.</p>
-              </div>
-            </details>
-          </div>
+          <p className="text-xs text-stone-500">
+            Notice under the Digital Personal Data Protection Act, 2023. You sign in with Google, which shares only your email address with us.
+          </p>
           <div className="pt-2 flex gap-3">
             <button className="btn btn-primary flex-1 py-2.5 font-medium" onClick={handleConsent}>
-              I Understand & Continue
+              Continue
             </button>
             <button className="btn px-4" onClick={() => void signOut()}>
               Sign out

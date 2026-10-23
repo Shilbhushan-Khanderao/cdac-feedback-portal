@@ -6,11 +6,15 @@ import { sessionsApi } from '../../shared/sessionsApi';
 import { copyFeedbackLink, fmt, shareFeedbackLink, sessionStatus, STATUS_STYLE } from '../../shared/format';
 import { cohortKey, useBatches, useCohortSizes, useCourses } from '../../shared/reference';
 import { CreateSessionForm } from './CreateSessionForm';
+import { useMe } from '../../app/auth';
 import { ArrowRight, Clipboard, Confetti, Warning, WhatsappLogo, X } from '@phosphor-icons/react';
 
 export function SessionsPage() {
   const [batchFilter, setBatchFilter] = useState('');
-  const [courseFilter, setCourseFilter] = useState('');
+  const me = useMe();
+  const [pickedCourse, setCourseFilter] = useState('');
+  // A CC assigned to one course only works with that course.
+  const courseFilter = me.course_id ?? pickedCourse;
   const [creating, setCreating] = useState(false);
   const [createdSession, setCreatedSession] = useState<{ id: string; moduleName?: string } | null>(null);
   const batches = useBatches();
@@ -53,14 +57,16 @@ export function SessionsPage() {
             </option>
           ))}
         </select>
-        <select className="input w-auto" aria-label="Filter by course" value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)}>
-          <option value="">All courses</option>
-          {courses.data?.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.code}
-            </option>
-          ))}
-        </select>
+        {!me.course_id && (
+          <select className="input w-auto" aria-label="Filter by course" value={courseFilter} onChange={(e) => setCourseFilter(e.target.value)}>
+            <option value="">All courses</option>
+            {courses.data?.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.code}
+              </option>
+            ))}
+          </select>
+        )}
         <button className="btn btn-primary" onClick={() => setCreating((v) => !v)}>
           {creating ? 'Cancel' : '+ New session'}
         </button>

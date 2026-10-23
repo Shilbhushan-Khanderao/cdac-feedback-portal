@@ -75,7 +75,7 @@ function Layout() {
       </a>
       <header className="sticky top-0 z-20 border-b border-stone-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex max-w-6xl flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5">
-          <BrandLockup className="mr-3" />
+          <BrandLockup className="sm:mr-3" />
           {isStaff(me) && visibleNav.length > 0 && (
             <nav className="order-last flex w-full gap-1 overflow-x-auto sm:order-none sm:w-auto" aria-label="Main">
               {visibleNav.map((n) => (
@@ -86,15 +86,12 @@ function Layout() {
             </nav>
           )}
           <span className="ml-auto flex items-center gap-2 text-sm">
-            <span className="hidden truncate text-stone-600 sm:inline">{me.full_name}</span>
-            <span className="rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium capitalize text-stone-600">{me.role === 'cc' ? 'Coordinator' : me.role}</span>
+            <span className="hidden truncate text-stone-600 md:inline">{me.full_name}</span>
+            <span className="hidden rounded-full bg-stone-100 px-2 py-0.5 text-xs font-medium capitalize text-stone-600 sm:inline">{me.role === 'cc' ? 'Coordinator' : me.role}</span>
+            <button className="btn px-3 py-1.5" onClick={() => void signOut()}>
+              Sign out
+            </button>
           </span>
-          <button
-            className="btn px-3 py-1.5"
-            onClick={() => void signOut()}
-          >
-            Sign out
-          </button>
         </div>
       </header>
       <StaffPrivacyNotice />
